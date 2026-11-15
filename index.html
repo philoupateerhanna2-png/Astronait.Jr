@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#060a18" />
+  <meta name="referrer" content="origin" />
+  <title>Astronaut Jr — Space Academy for Young Explorers</title>
+  <meta name="description" content="Astronaut Jr is a kid-friendly space academy: Explore space missions, all eight planets, Astro Cinema, interactive science quizzes, and a friendly robot guide for young explorers." />
+  <script>
+    (() => {
+      try {
+        const language = localStorage.getItem("aj-lang");
+        const selectedLanguage = language === "ar" ? "ar" : "en";
+        document.documentElement.lang = selectedLanguage;
+        document.documentElement.dir = selectedLanguage === "ar" ? "rtl" : "ltr";
+      } catch (_) {}
+      try {
+        const saved = localStorage.getItem("astronaut-jr-theme");
+        document.documentElement.dataset.theme = saved === "dark" ? "dark" : "light";
+      } catch (_) {
+        document.documentElement.dataset.theme = "light";
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body>
+<canvas id="starfield" aria-hidden="true"></canvas>
+<div class="nebula" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="brand" type="button" onclick="app.go('missions')" aria-label="Astronaut Jr home">
+      <img class="brand-logo" src="assets/astronaut-jr-logo.png" alt="Astronaut Jr — Space Academy" />
+    </button>
+    <div class="hud">
+      <div class="langs langs-top" role="group" aria-label="Language"><button type="button" data-lang="ar">العربية</button><button type="button" data-lang="en">English</button></div>
+      <div class="hud-stat" title="Stars you have earned">
+        <span class="hud-ico" aria-hidden="true">★</span>
+        <span><b id="hudStars">0</b><small>stars</small></span>
+      </div>
+      <div class="hud-rank">
+        <span id="hudRank">Space Trainee</span>
+        <span class="rankbar"><i id="rankFill"></i></span>
+      </div>
+      <button class="icon-btn theme-toggle" id="btnTheme" type="button" title="Switch to dark mode" aria-label="Switch to dark mode" aria-pressed="false">🌙</button>
+      <button class="icon-btn" id="btnVoice" title="Astro reads aloud" aria-label="Toggle Astro voice" aria-pressed="false">🔈</button>
+      <button class="icon-btn" id="btnSound" title="Sound effects" aria-label="Toggle sound effects" aria-pressed="true">🔊</button>
+      <button class="icon-btn" id="btnContact" title="Contact us" aria-label="Contact us" onclick="document.querySelector('[data-extra-view=contact]')?.click()">✉️</button>
+      <button class="icon-btn" id="btnSettings" title="Settings" aria-label="Open settings">⚙️</button>
+    </div>
+  </div>
+  <nav class="tabs" aria-label="Sections">
+    <button class="tab is-active" data-view="missions">🚀 Missions</button>
+    <button class="tab" data-view="planets">🪐 Planets</button>
+    <button class="tab" data-view="cadet">🧑‍🚀 My Cadet</button>
+    <button class="tab" data-view="trophies">🏆 Trophies</button>
+    <button class="tab" data-view="resources">📚 Resources</button>
+  </nav>
+</header>
+
+<main id="app">
+  <section class="view is-active" id="view-missions" aria-label="Training missions"></section>
+  <section class="view" id="view-planets" aria-label="Planet explorer"></section>
+  <section class="view" id="view-cadet" aria-label="My cadet and outfit shop"></section>
+  <section class="view" id="view-trophies" aria-label="Trophies"></section>
+  <section class="view resources-view" id="view-resources" aria-label="Scientific resources and references">
+    <div class="resources-wrap">
+      <header class="resources-hero">
+        <span class="resources-eyebrow">ASTRONAUT JR • LEARNING LIBRARY</span>
+        <h1>Scientific Resources &amp; References</h1>
+        <p>Trusted space-science learning links, educational standards, and development tools.</p>
+      </header>
+      <section class="resources-card" aria-labelledby="resources-nasa-title">
+        <h2 id="resources-nasa-title">1. NASA Resources</h2>
+        <ul class="resource-list">
+          <li><a href="https://api.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA Open APIs</a><span>NASA’s catalogue of APIs and developer services.</span></li>
+          <li><a href="https://science.nasa.gov/wp-json/wp/v2/apod-basic" target="_blank" rel="noopener noreferrer">NASA Astronomy Picture of the Day (APOD) endpoint</a><span>An endpoint associated with NASA’s daily astronomy picture content.</span></li>
+          <li><a href="https://images.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA Image and Video Library</a><span>Search NASA’s collection of images, videos, and other media.</span></li>
+          <li><a href="https://spaceplace.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA Space Place</a><span>Space-science activities and learning resources for children and young learners.</span></li>
+          <li><a href="https://www.nasa.gov/learning-resources/" target="_blank" rel="noopener noreferrer">NASA Learning Resources</a><span>Educational resources and programmes supporting STEM learning.</span></li>
+          <li><a href="https://earthdata.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA Earthdata</a><span>Earth-observation data, imagery, and visualization services.</span></li>
+        </ul>
+      </section>
+      <section class="resources-card" aria-labelledby="resources-standards-title">
+        <h2 id="resources-standards-title">2. Educational Research &amp; Quality Standards</h2>
+        <ul class="resource-list">
+          <li><a href="https://www.unicef.org/innocenti/reports/policy-guidance-ai-children" target="_blank" rel="noopener noreferrer">UNICEF Policy Guidance on AI for Children</a><span>Guidance covering child-centred AI, safety, privacy, and transparency.</span></li>
+          <li><a href="https://www.w3.org/TR/WCAG22/" target="_blank" rel="noopener noreferrer">W3C Web Content Accessibility Guidelines (WCAG) 2.2</a><span>Accessibility guidance for making digital content more usable and inclusive.</span></li>
+          <li><a href="https://link.springer.com/article/10.1007/s11423-023-10337-7" target="_blank" rel="noopener noreferrer">Li, Hew &amp; Du (2024) — Educational Games Research</a><span>Research examining gamification and its relationship with motivation and learning.</span></li>
+        </ul>
+      </section>
+      <section class="resources-card" aria-labelledby="resources-tools-title">
+        <h2 id="resources-tools-title">3. Development &amp; Testing Tools</h2>
+        <ul class="resource-list">
+          <li><a href="https://playwright.dev/" target="_blank" rel="noopener noreferrer">Playwright</a><span>Browser automation and end-to-end user-experience testing.</span></li>
+          <li><a href="https://vitest.dev/" target="_blank" rel="noopener noreferrer">Vitest</a><span>A fast framework for testing JavaScript and application logic.</span></li>
+          <li><a href="https://validator.w3.org/" target="_blank" rel="noopener noreferrer">W3C HTML Validator</a><span>Checks HTML markup for conformance and common errors.</span></li>
+        </ul>
+      </section>
+      <p class="resources-note">External websites open in a new tab. Resource descriptions are brief summaries; follow each source for its current documentation.</p>
+    </div>
+  </section>
+  <section class="view earth3d-view" id="view-earth3d" aria-label="Earth 3D explorer">
+    <iframe
+      id="earth3dFrame"
+      class="earth3d-frame"
+      src="earth-3d.html"
+      title="Interactive 3D Earth explorer"
+      loading="lazy"
+      allow="fullscreen"
+      allowfullscreen
+    ></iframe>
+    <button class="earth3d-back" type="button" onclick="app.backFromEarth3D()" aria-label="Back to planet explorer">
+      <span aria-hidden="true">←</span> Back to Planets
+    </button>
+  </section>
+
+</main>
+
+<footer class="site-footer" id="site-footer">
+  <astro-contact>
+    <p>For support, please ask a parent, guardian, or teacher to contact the Astronaut Jr team.</p>
+  </astro-contact>
+  <p class="copyright">copyright© <span id="copyYear"></span> Astronaut Jr.</p>
+</footer>
+
+<!-- ================= MISSION OVERLAY ================= -->
+<div class="overlay" id="missionOverlay" role="dialog" aria-modal="true" aria-labelledby="missionTitle">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div>
+        <small id="missionKicker">Mission 01</small>
+        <h3 id="missionTitle">Mission title</h3>
+      </div>
+      <div class="lesson-dots" id="lessonDots" aria-hidden="true"></div>
+      <button class="close-x spacer" onclick="app.closeMission()" aria-label="Close mission">✕</button>
+    </div>
+    <div class="sheet-body" id="missionBody"></div>
+    <div class="sheet-foot" id="missionFoot"></div>
+  </div>
+</div>
+
+<!-- ================= PLANET SHEET ================= -->
+<div class="overlay" id="planetSheet" role="dialog" aria-modal="true" aria-label="Planet file">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div>
+        <small>Planet file</small>
+        <h3>Explorer notes</h3>
+      </div>
+      <button class="close-x spacer" onclick="app.closePlanet()" aria-label="Close planet">✕</button>
+    </div>
+    <div class="sheet-body" id="planetBody"></div>
+    <div class="sheet-foot">
+      <button class="btn btn-ghost btn-sm" id="planetPrev">← Previous</button>
+      <button class="btn btn-primary btn-sm" id="planetRead">🔊 Read to me</button>
+      <button class="btn btn-ghost btn-sm" id="planetNext">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SETUP ================= -->
+<div class="overlay" id="setupModal" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
+  <div class="sheet narrow">
+    <div class="sheet-head">
+      <div>
+        <small>Cadet registration</small>
+        <h3 id="setupTitle">Welcome to the Academy</h3>
+      </div>
+    </div>
+    <div class="sheet-body">
+      <div style="text-align:center;margin-bottom:14px">
+        <div class="cadet-avatar" id="setupAvatar" style="width:150px;margin:0 auto"></div>
+      </div>
+      <div class="field">
+        <label for="cadetName">Your cadet name</label>
+        <input id="cadetName" type="text" maxlength="18" placeholder="e.g. Nova" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label>Pick your first suit colour</label>
+        <div class="starter-row" id="starterColors"></div>
+      </div>
+      <p style="font-size:.82rem;color:var(--ink-faint);margin-bottom:14px">Everything you earn — stars, missions, outfits — is saved on this device.</p>
+      <button class="btn btn-primary btn-block" id="btnStart">Start training 🚀</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= FIRST-USE GUIDE ================= -->
+<div class="overlay" id="onboardingModal" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+  <div class="sheet narrow onboarding-sheet">
+    <div class="sheet-head"><div><small>YOUR FIRST FLIGHT</small><h3 id="onboardingTitle">Welcome, space explorer!</h3></div></div>
+    <div class="sheet-body">
+      <p class="onboarding-lead">Astronaut Jr is a small space academy. You can explore freely, then follow the training missions when you are ready.</p>
+      <div class="onboarding-grid">
+        <article><span>🚀</span><b>Missions</b><p>Learn with short lesson cards, try an activity, answer a quiz and earn stars.</p></article>
+        <article><span>🪐</span><b>Explore</b><p>Visit planet files, Earth and Mars explorers, AstroCinema and the Training Lab.</p></article>
+        <article><span>🧑‍🚀</span><b>Your cadet</b><p>Choose a suit, collect rewards and see your progress in My Cadet and Trophies.</p></article>
+      </div>
+      <div class="onboarding-save"><b>💾 How saving works</b><p><strong>Play as guest:</strong> explore without creating an account. Progress is saved in this browser on this device.</p><p><strong>Create an account:</strong> A separate local profile is created on this device. It does not sync progress to the cloud or other devices.</p><p>Account sign-in and setup events may be sent to the site administrator's notification service. Ask a grown-up before entering an email.</p><p>If you clear browser data or change devices, local progress may not be available.</p></div>
+      <div class="onboarding-actions"><button class="btn btn-ghost" type="button" onclick="app.finishOnboarding(false)">Explore first</button><button class="btn btn-primary" type="button" onclick="app.finishOnboarding(true)">Start Mission 1 🚀</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SETTINGS ================= -->
+<div class="overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="sheet narrow">
+    <div class="sheet-head">
+      <div>
+        <small>Cadet console</small>
+        <h3 id="settingsTitle">Settings</h3>
+      </div>
+      <button class="close-x spacer" onclick="app.closeSettings()" aria-label="Close settings">✕</button>
+    </div>
+    <div class="sheet-body">
+      <section class="settings-group" aria-labelledby="settingsAppearanceTitle">
+        <h4 id="settingsAppearanceTitle">Appearance</h4>
+        <div class="settings-choice-row">
+          <span><b>Screen mode</b><small>Choose a bright or space-dark look</small></span>
+          <div class="settings-choice" role="group" aria-label="Screen mode">
+            <button type="button" class="settings-choice-btn" data-theme-choice="light" aria-pressed="false">☀️ Light</button>
+            <button type="button" class="settings-choice-btn" data-theme-choice="dark" aria-pressed="false">🌙 Dark</button>
+          </div>
+        </div>
+      </section>
+      <section class="settings-group" aria-labelledby="settingsLanguageTitle">
+        <h4 id="settingsLanguageTitle">Language</h4>
+        <div class="settings-choice-row">
+          <span><b>App language</b><small>Choose the language used in the academy</small></span>
+          <div class="settings-choice langs" role="group" aria-label="Language">
+            <button type="button" data-lang="en" aria-pressed="false">English</button>
+            <button type="button" data-lang="ar" aria-pressed="false">العربية</button>
+          </div>
+        </div>
+        <p class="settings-hint">Mission titles, lesson headings and planet labels are translated. Some detailed lesson paragraphs and quiz text are still being translated.</p>
+      </section>
+      <div class="switchline">
+        <span>Sound effects<small>Little beeps and rewards</small></span>
+        <button class="toggle on" id="tgSound" aria-label="Toggle sound effects"></button>
+      </div>
+      <div class="switchline">
+        <span>Astro reads aloud<small>Speaks every lesson card and his messages</small></span>
+        <button class="toggle" id="tgVoice" aria-label="Toggle Astro voice"></button>
+      </div>
+      <div class="switchline">
+        <span>Calm mode<small>Stops floating and zoom animations</small></span>
+        <button class="toggle" id="tgCalm" aria-label="Toggle calm mode"></button>
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label for="renameInput">Cadet name</label>
+        <input id="renameInput" type="text" maxlength="18" aria-label="New cadet name" />
+      </div>
+      <button class="btn btn-ghost btn-block" id="btnRename" style="margin-bottom:8px">Save name</button>
+      <div class="switchline" style="margin-top:6px">
+        <span>Signed in as<small id="authWho">Guest</small></span>
+        <button class="btn btn-ghost btn-sm" id="btnSignOut" type="button">Sign out</button>
+      </div>
+      <button class="btn btn-ghost btn-block" id="btnReset" style="color:#ffc9c9;border-color:rgba(255,125,125,.35)">Reset all progress</button>
+      <p style="font-size:.72rem;color:var(--ink-faint);margin-top:12px;text-align:center">Astronaut Jr v3 · 15 missions · saved in this browser</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PIP ================= -->
+<div class="pip-dock">
+  <div class="pip-panel" id="pipPanel" hidden>
+    <div class="pip-head">
+      <div style="width:36px;height:36px;flex:none" id="pipHeadAvatar"></div>
+      <div class="who"><b>Astro</b><small>AI-assisted learning guide</small></div>
+      <button class="close-x" style="margin-left:auto;width:34px;height:34px" onclick="app.togglePip(false)" aria-label="Close Astro">✕</button>
+    </div>
+    <div class="pip-ai-notice" role="note">AI-assisted learning helper. Don’t share your full name, address, school details, passwords or other private information. Ask a trusted adult if a reply worries you.</div>
+    <div class="pip-log" id="pipLog" aria-live="polite"></div>
+    <div class="pip-chips" id="pipChips"></div>
+    <form class="pip-form" id="pipForm">
+      <input id="pipInput" type="text" maxlength="120" placeholder="Ask Astro anything about space…" autocomplete="off" aria-label="Message Astro" />
+      <button class="pip-send" type="submit" aria-label="Send">➤</button>
+    </form>
+    <div class="pip-report"><span>Astro can make mistakes. Check important facts with a teacher.</span> <a href="mailto:astronautjr.space@gmail.com?subject=Astronaut%20Jr%20Astro%20response%20report">Report a concern (ask an adult)</a></div>
+  </div>
+  <button class="pip-launcher" id="pipLauncher" aria-label="Talk to Astro">
+    <span id="pipLauncherAvatar"></span>
+    <span class="dot"></span>
+  </button>
+</div>
+
+<div class="overlay" id="learningDialog" role="dialog" aria-modal="true" aria-labelledby="learningDialogTitle">
+  <div class="sheet narrow learning-dialog-sheet">
+    <div class="sheet-head"><div><small>ASTRO'S LEARNING DESK</small><h3 id="learningDialogTitle">Quick challenge</h3></div><button class="close-x spacer" type="button" onclick="AstroExtra.closeLearningDialog()" aria-label="Close dialog">✕</button></div>
+    <div class="sheet-body" id="learningDialogBody"></div><div class="sheet-foot" id="learningDialogFoot"></div>
+  </div>
+</div>
+<div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<!-- ================= WELCOME INTRO (shown before sign in) ================= -->
+<section class="welcome-intro" id="welcomeIntro" aria-label="Astronaut Jr introduction" hidden>
+  <div class="welcome-stars" aria-hidden="true"></div>
+  <div class="welcome-topbar">
+    <a class="welcome-brand" href="#" aria-label="Astronaut Jr"><img src="assets/astronaut-jr-logo.png" alt="Astronaut Jr"></a>
+    <div class="langs welcome-langs" role="group" aria-label="Language">
+      <button type="button" data-lang="ar">العربية</button><button type="button" data-lang="en">English</button>
+    </div>
+  </div>
+  <div class="welcome-layout">
+    <div class="welcome-copy">
+      <span class="welcome-kicker" data-welcome-en="YOUR SPACE ADVENTURE STARTS HERE" data-welcome-ar="مغامرتك في الفضاء تبدأ من هنا">YOUR SPACE ADVENTURE STARTS HERE</span>
+      <h1 data-welcome-en="Big discoveries.
+One little step at a time." data-welcome-ar="اكتشافات عظيمة،
+خطوة بخطوة.">Big discoveries.<br>One little step at a time.</h1>
+      <p data-welcome-en="Meet Astronaut Jr — a playful space academy where young explorers learn about planets, complete missions, try activities and earn rewards." data-welcome-ar="اكتشف Astronaut Jr — أكاديمية فضاء تفاعلية يتعرّف فيها المستكشفون الصغار على الكواكب، ويكملون المهام، ويجرّبون الأنشطة، ويحصلون على المكافآت.">Meet Astronaut Jr — a playful space academy where young explorers learn about planets, complete missions, try activities and earn rewards.</p>
+      <div class="welcome-pills"><span>🚀 <b data-welcome-en="Missions" data-welcome-ar="المهام">Missions</b></span><span>🪐 <b data-welcome-en="Planet files" data-welcome-ar="ملفات الكواكب">Planet files</b></span><span>⭐ <b data-welcome-en="Progress & rewards" data-welcome-ar="التقدم والمكافآت">Progress & rewards</b></span></div>
+      <button class="welcome-enter" id="welcomeEnter" type="button"><span data-welcome-en="Enter the academy" data-welcome-ar="ادخل الأكاديمية">Enter the academy</span><span aria-hidden="true">↗</span></button>
+      <span class="welcome-footnote" data-welcome-en="A quick tour before your first launch" data-welcome-ar="جولة سريعة قبل انطلاقك الأول">A quick tour before your first launch</span>
+    </div>
+    <div class="welcome-visual" aria-label="Explore Astronaut Jr">
+      <div class="welcome-orbit welcome-orbit-one"></div><div class="welcome-orbit welcome-orbit-two"></div>
+      <img class="welcome-main-image" src="astronaut-jr-about-assets/hero-astronaut.webp" alt="Young astronaut looking toward Earth">
+      <div class="welcome-float-card welcome-card-planets"><img src="astronaut-jr-about-assets/planetarium-child.webp" alt="Young learner exploring astronomy"><span><b data-welcome-en="Explore" data-welcome-ar="استكشف">Explore</b><small data-welcome-en="Discover the universe" data-welcome-ar="اكتشف الكون">Discover the universe</small></span></div>
+      <div class="welcome-float-card welcome-card-mission"><img src="astronaut-jr-about-assets/mission-telescope.webp" alt="Explorer using a telescope"><span><b data-welcome-en="Learn by doing" data-welcome-ar="تعلّم بالتجربة">Learn by doing</b><small data-welcome-en="Missions and activities" data-welcome-ar="مهام وأنشطة تفاعلية">Missions and activities</small></span></div>
+      <span class="welcome-spark welcome-spark-a">✦</span><span class="welcome-spark welcome-spark-b">✧</span>
+    </div>
+  </div>
+  <div class="welcome-bottom"><span>ASTRONAUT JR</span><span data-welcome-en="READY, CADET?" data-welcome-ar="هل أنت مستعد أيها المستكشف؟">READY, CADET?</span></div>
+</section>
+
+<!-- ================= AUTH (sign in / create account) ================= -->
+<div class="auth" id="authScreen" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+  <canvas id="authStars" aria-hidden="true"></canvas>
+  <div class="auth-glow" aria-hidden="true"></div>
+  <div class="auth-card" id="authCard">
+    <div class="auth-logo">
+      <img src="assets/astronaut-jr-logo.png" alt="Astronaut Jr" />
+    </div>
+    <div class="langs-auth"><div class="langs" role="group" aria-label="Language"><button type="button" data-lang="ar">العربية</button><button type="button" data-lang="en">English</button></div></div>
+    <div class="auth-kicker">Space Academy</div>
+
+    <div class="auth-tabs" role="tablist" aria-label="Account">
+      <button class="auth-tab" role="tab" id="tabSignin" data-mode="signin" aria-selected="true" aria-controls="authForm">Sign in</button>
+      <button class="auth-tab" role="tab" id="tabSignup" data-mode="signup" aria-selected="false" aria-controls="authForm">Create account</button>
+    </div>
+
+    <h2 class="auth-title" id="authTitle">Welcome back, cadet!</h2>
+    <p class="auth-lead" id="authLead">Local demo accounts only. Do not use a real password or personal email.</p>
+
+    <form id="authForm" novalidate>
+      <div class="field">
+        <label for="authUser" id="authUserLabel">Username</label>
+        <input id="authUser" type="text" maxlength="64" placeholder="Username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" />
+      </div>
+      <div class="field">
+        <label for="authPass">Secret code</label>
+        <div class="auth-pw">
+          <input id="authPass" type="password" placeholder="Your secret code" autocomplete="current-password" />
+          <button type="button" class="auth-eye" id="authEye" aria-label="Show secret code" aria-pressed="false">👁</button>
+        </div>
+      </div>
+      <div class="auth-meter" id="authMeter" data-s="0" hidden><i></i><i></i><i></i><i></i><span id="authMeterText"></span></div>
+      <div class="field" id="authConfirmWrap" hidden>
+        <label for="authPass2">Repeat secret code</label>
+        <input id="authPass2" type="password" placeholder="Type it once more" autocomplete="new-password" />
+      </div>
+      <label class="auth-check"><input type="checkbox" id="authRemember" checked /> Keep me signed in on this device</label>
+      <p class="auth-error" id="authError" role="alert"></p>
+      <button class="btn btn-primary btn-block" id="authSubmit" type="submit">Sign in 🚀</button>
+    </form>
+
+    <div class="auth-or">or</div>
+    <button class="btn btn-ghost btn-block" id="authGuest" type="button">Play as guest 🧑‍🚀</button>
+    <p class="auth-note">Guest play and accounts save progress in this browser only; there is no cloud sync. Ask a grown-up before entering an email.</p>
+  </div>
+</div>
+
+<script type="module" src="js/features/theme.js"></script>
+<script type="module" src="js/features/auth.js"></script>
+<script type="module" src="astro.js"></script>
+</body>
+</html>

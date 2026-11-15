@@ -1,0 +1,3494 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Earth Studio 3D — Seven Wonders &amp; Blender Viewport</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Three.js ES Module Import Map -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <style>
+    .astronaut-jr-back {
+      position: fixed;
+      top: max(14px, env(safe-area-inset-top));
+      left: max(14px, env(safe-area-inset-left));
+      z-index: 99999;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 15px;
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 12px;
+      color: #eef2f7;
+      background: rgba(9, 15, 28, .88);
+      box-shadow: 0 8px 28px rgba(0,0,0,.35);
+      font: 600 14px/1.2 Inter, sans-serif;
+      text-decoration: none;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .astronaut-jr-back:hover { background: rgba(14, 165, 233, .92); }
+
+    :root {
+      --bg-viewport: #05070d;
+      --bg-panel: rgba(22, 26, 34, 0.92);
+      --border-subtle: rgba(255, 255, 255, 0.10);
+      --accent-earth: #0ea5e9;
+      --accent-earth-hover: #38bdf8;
+      --accent-gold: #f59e0b;
+      --text-primary: #eef2f7;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-viewport);
+      color: var(--text-primary);
+      font-family: 'Inter', 'Cairo', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .font-arabic {
+      font-family: 'Cairo', 'Inter', sans-serif;
+    }
+
+    .font-mono-tech {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Blender-style Custom Range Sliders */
+    input[type="range"].blender-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 20px;
+      background: #13161d;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      outline: none;
+      cursor: ew-resize;
+      overflow: hidden;
+    }
+
+    input[type="range"].blender-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 10px;
+      height: 20px;
+      background: var(--accent-earth);
+      border-radius: 2px;
+      box-shadow: -400px 0 0 396px rgba(14, 165, 233, 0.34);
+      cursor: ew-resize;
+      transition: background 0.15s ease;
+    }
+
+    input[type="range"].blender-slider:hover::-webkit-slider-thumb {
+      background: var(--accent-earth-hover);
+    }
+
+    input[type="range"].blender-slider::-moz-range-thumb {
+      width: 10px;
+      height: 20px;
+      background: var(--accent-earth);
+      border: none;
+      border-radius: 2px;
+      box-shadow: -400px 0 0 396px rgba(14, 165, 233, 0.34);
+      cursor: ew-resize;
+    }
+
+    /* Custom Scrollbars */
+    .n-panel-scroll::-webkit-scrollbar,
+    .thin-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+    .n-panel-scroll::-webkit-scrollbar-track,
+    .thin-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .n-panel-scroll::-webkit-scrollbar-thumb,
+    .thin-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+    }
+
+    /* 3D Floating Wonder Pins */
+    .landmark-pin {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      pointer-events: auto;
+      cursor: pointer;
+      transition: opacity 0.2s ease, transform 0.15s ease;
+      z-index: 15;
+    }
+    .landmark-pin:hover {
+      transform: translate(-50%, -50%) scale(1.07);
+      z-index: 25;
+    }
+    .landmark-pin.selected {
+      z-index: 28;
+    }
+    .landmark-pin.occluded {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    @keyframes pulseRing {
+      0% { transform: scale(0.85); opacity: 0.9; }
+      70% { transform: scale(2.1); opacity: 0; }
+      100% { transform: scale(2.1); opacity: 0; }
+    }
+    .pin-pulse {
+      animation: pulseRing 2.5s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    }
+
+    .blender-surface {
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+    }
+
+    @keyframes stampPop {
+      0% { transform: scale(0.5) rotate(-14deg); opacity: 0; }
+      70% { transform: scale(1.12) rotate(3deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    .stamp-pop {
+      animation: stampPop 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+  </style>
+  <style>
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="astronaut-jr-back" href="index.html" onclick="if (history.length > 1) { event.preventDefault(); history.back(); }">
+    <span aria-hidden="true">←</span> Back to Astronaut Jr
+  </a>
+
+  <!-- Full-Screen 3D WebGL Viewport Container -->
+  <div id="viewport-container" class="relative w-screen h-screen overflow-hidden bg-[#04060b]">
+    <canvas id="earth-canvas" class="block w-full h-full outline-none"></canvas>
+
+    <!-- 3D Projected Wonder Pins HUD Layer -->
+    <div id="landmarks-layer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+
+    <!-- Geodesic Distance Measurement Floating Badge -->
+    <div id="measure-badge" class="hidden fixed z-30 pointer-events-none -translate-x-1/2 -translate-y-full pb-2">
+      <div class="px-2.5 py-1 rounded-md bg-[#0f131c]/90 backdrop-blur-md border border-cyan-400/60 shadow-lg text-[11px] font-mono-tech text-cyan-200 whitespace-nowrap flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+        <span id="measure-badge-text">0 km</span>
+      </div>
+    </div>
+
+    <!-- Initial Procedural Earth Synthesis Overlay -->
+    <div id="loader-overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#05070d]/95 backdrop-blur-md transition-opacity duration-500">
+      <div class="w-12 h-12 rounded-xl bg-sky-500/15 border border-sky-400/50 flex items-center justify-center mb-4 shadow-lg shadow-sky-500/15">
+        <svg class="w-6 h-6 text-sky-400 animate-spin" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+          <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z"></path>
+        </svg>
+      </div>
+      <div class="text-sm font-semibold tracking-wide text-white mb-1">SYNTHESIZING 3D PLANET EARTH &amp; SEVEN WONDERS</div>
+      <div class="text-xs font-mono-tech text-neutral-400">Generating Continents, Oceans, Clouds, City Lights &amp; 256×192 Relief Mesh...</div>
+    </div>
+
+    <!-- Toast Notification Banner (Replaces alert()) -->
+    <div id="toast-banner" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 -translate-y-2">
+      <div class="px-3.5 py-1.5 rounded-lg blender-surface border border-sky-400/50 shadow-xl flex items-center gap-2 text-xs font-medium text-white">
+        <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+        <span id="toast-message">Ready</span>
+      </div>
+    </div>
+
+    <!-- TOP VIEWPORT HEADER BAR -->
+    <header class="absolute top-2.5 left-2.5 right-2.5 z-30 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      <!-- Left: Studio Identity, Language Toggle, Explorer Mode, Passport & Shading -->
+      <div class="flex items-center gap-1.5 pointer-events-auto flex-wrap">
+        <!-- App Title Pill -->
+        <div class="blender-surface rounded-lg px-2.5 py-1.5 flex items-center gap-2 shadow-lg">
+          <div class="w-5 h-5 rounded bg-gradient-to-br from-sky-400 to-emerald-500 flex items-center justify-center text-[#071018] font-bold text-xs shadow-inner">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M3.6 9h16.8M3.6 15h16.8"/>
+              <path d="M12 3a14 14 0 0 0 0 18 14 14 0 0 0 0-18"/>
+            </svg>
+          </div>
+          <span id="app-title-text" class="text-xs font-semibold tracking-wide text-neutral-100">EARTH 3D</span>
+          <span class="hidden sm:inline-block text-[10px] font-mono-tech px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-400/25">7 WONDERS</span>
+        </div>
+
+        <!-- Bilingual Toggle (English / العربية) -->
+        <div class="blender-surface rounded-lg p-1 flex items-center gap-0.5 shadow-lg" role="group" aria-label="Language Switch">
+          <button id="lang-en-btn" class="px-2 py-1 rounded-md text-[11px] font-semibold bg-sky-500 text-white shadow-sm transition-all">
+            EN
+          </button>
+          <button id="lang-ar-btn" class="px-2 py-1 rounded-md text-[11px] font-semibold font-arabic text-neutral-300 hover:text-white hover:bg-white/5 transition-all">
+            عربي
+          </button>
+        </div>
+
+        <!-- Kid Explorer vs Pro Studio Mode Toggle -->
+        <div class="blender-surface rounded-lg p-1 flex items-center gap-1 shadow-lg" role="group" aria-label="Experience Mode">
+          <button id="mode-kid-btn" class="px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm transition-all">
+            <span>🌍</span>
+            <span id="lbl-mode-kid">Kid Explorer</span>
+          </button>
+          <button id="mode-pro-btn" class="px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 text-neutral-300 hover:text-white hover:bg-white/5 transition-all">
+            <span>🛰️</span>
+            <span id="lbl-mode-pro" class="hidden sm:inline">Pro Studio</span>
+          </button>
+        </div>
+
+        <!-- World Explorer Passport Stamps Counter -->
+        <div id="passport-badge" class="blender-surface rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 shadow-lg border border-amber-400/30 transition-all" title="Visit all 8 Wonders of the World to complete your Passport!">
+          <span id="passport-icon" class="text-sm">🏅</span>
+          <span id="passport-text" class="text-xs font-mono-tech font-semibold text-amber-300">Stamps: 0 / 8</span>
+        </div>
+
+        <!-- Blender Viewport Shading Mode Switcher -->
+        <div class="blender-surface rounded-lg p-1 flex items-center gap-1 shadow-lg" role="group" aria-label="Viewport Shading">
+          <button data-shading="rendered" class="shading-btn active px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all bg-sky-500 text-white shadow-sm" title="Rendered PBR Shading (Key: 1)">
+            <span class="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-blue-600 via-emerald-400 to-white border border-white/40"></span>
+            <span class="hidden xl:inline">Rendered</span>
+          </button>
+          <button data-shading="clay" class="shading-btn px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 text-neutral-300 hover:text-white hover:bg-white/5 transition-all" title="Clay Sculpt MatCap (Key: 2)">
+            <span class="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-[#3b4252] via-[#8892a4] to-[#e5e9f0]"></span>
+            <span class="hidden xl:inline">Clay</span>
+          </button>
+          <button data-shading="wireframe" class="shading-btn px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 text-neutral-300 hover:text-white hover:bg-white/5 transition-all" title="Mesh Topology Wireframe (Key: 3)">
+            <svg class="w-3.5 h-3.5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9"/>
+              <ellipse cx="12" cy="12" rx="4.5" ry="9"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+            </svg>
+            <span class="hidden xl:inline">Wire</span>
+          </button>
+          <button data-shading="elevation" class="shading-btn px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 text-neutral-300 hover:text-white hover:bg-white/5 transition-all" title="Topographic & Bathymetric Relief Map (Key: 4)">
+            <span class="w-2.5 h-2.5 rounded-full bg-gradient-to-t from-blue-800 via-emerald-400 to-amber-200"></span>
+            <span class="hidden xl:inline">Elevation</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Right: Tools, GLB Export & Panel Toggles -->
+      <div class="flex items-center gap-1.5 pointer-events-auto">
+        <div class="blender-surface rounded-lg p-1 flex items-center gap-1 shadow-lg">
+          <button id="btn-toggle-rotate" aria-pressed="true" class="px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 bg-sky-500/25 text-sky-200 border border-sky-400/50 hover:bg-sky-500/40 transition-all" title="Toggle Earth Auto-Spin (Space)">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            </svg>
+            <span id="lbl-spin" class="hidden md:inline">Auto-Spin</span>
+          </button>
+
+          <button id="tool-measure" class="tool-btn px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 text-neutral-300 hover:text-white hover:bg-white/5 transition-all" title="Measure Geodesic Surface Distance in km (Key: M)">
+            <svg class="w-3.5 h-3.5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/>
+              <path d="m14.5 12.5 2-2"/>
+              <path d="m11.5 9.5 2-2"/>
+              <path d="m8.5 6.5 2-2"/>
+            </svg>
+            <span id="lbl-measure" class="hidden lg:inline">Measure (km)</span>
+          </button>
+
+          <button id="btn-clear-measure" class="hidden px-2 py-1 rounded-md text-[11px] font-medium text-rose-300 hover:text-white hover:bg-rose-500/25 transition-all">
+            Clear
+          </button>
+
+          <button id="btn-toggle-grid" class="px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 text-neutral-300 hover:text-white hover:bg-white/5 transition-all" title="Toggle Latitude / Longitude Grid (Key: G)">
+            <svg class="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            <span id="lbl-grid" class="hidden lg:inline">Grid</span>
+          </button>
+
+          <button id="btn-export-glb" class="px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 bg-emerald-600/25 text-emerald-200 border border-emerald-500/40 hover:bg-emerald-600/40 transition-all" title="Export 3D Model (.GLB) for Blender">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span class="hidden sm:inline">.GLB</span>
+          </button>
+        </div>
+
+        <!-- Left Wonders Outliner Toggle Button -->
+        <button id="btn-toggle-outliner" class="blender-surface rounded-lg px-2.5 py-1.5 text-xs font-semibold text-neutral-200 hover:text-white hover:border-white/25 transition-all shadow-lg flex items-center gap-1.5" title="Toggle Seven Wonders List (Key: O)">
+          <span class="text-sm">🏛️</span>
+          <span id="lbl-wonders-btn">7 Wonders (8)</span>
+        </button>
+
+        <!-- Right 3D Controls N-Panel Toggle Button -->
+        <button id="btn-toggle-npanel" class="blender-surface rounded-lg px-2.5 py-1.5 text-xs font-semibold text-neutral-200 hover:text-white hover:border-white/25 transition-all shadow-lg flex items-center gap-1.5" title="Toggle 3D Controls Panel (Key: N)">
+          <svg class="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="15" y1="3" x2="15" y2="21"/>
+          </svg>
+          <span id="lbl-controls-btn">Controls</span>
+        </button>
+
+        <!-- Clean View Button -->
+        <button id="btn-clear-view" class="blender-surface rounded-lg px-2 py-1.5 text-xs font-medium text-neutral-300 hover:text-white hover:border-white/25 transition-all shadow-lg flex items-center gap-1" title="Close All Panels for Unobstructed 3D View (Key: H)">
+          <svg class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          <span id="lbl-clean-btn" class="hidden md:inline">Clean View</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- COLLAPSIBLE LEFT OUTLINER: THE SEVEN WONDERS OF THE WORLD -->
+    <aside id="left-outliner" class="fixed top-14 left-2.5 bottom-11 w-[290px] max-w-[calc(100vw-20px)] z-30 blender-surface rounded-xl shadow-2xl flex flex-col overflow-hidden transition-transform duration-300 ease-out -translate-x-[325px]">
+      <!-- Outliner Header -->
+      <div class="px-3 py-2 border-b border-white/10 flex items-center justify-between bg-black/30">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+          <span id="outliner-header-title" class="text-xs font-semibold tracking-wider uppercase text-neutral-200">Seven Wonders of the World</span>
+        </div>
+        <button id="btn-close-outliner" class="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors" title="Hide Wonders List">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Search + Continent/Region Filter Pills -->
+      <div class="p-2 border-b border-white/10 space-y-2 bg-black/15">
+        <div class="relative">
+          <input id="outliner-search" type="text" placeholder="Search pyramids, wall, Petra..." class="w-full bg-[#11141c] border border-white/10 focus:border-sky-400 rounded-md pl-7 pr-2.5 py-1.5 text-xs text-white placeholder-neutral-500 outline-none select-text" style="user-select: text; -webkit-user-select: text;">
+          <svg class="w-3.5 h-3.5 text-neutral-500 absolute left-2.5 top-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </div>
+
+        <div class="flex flex-wrap gap-1">
+          <button data-category="all" class="cat-pill active px-2 py-0.5 rounded-full text-[10px] font-semibold border border-sky-400 bg-sky-500/25 text-white transition-all">
+            All (8)
+          </button>
+          <button data-category="mena" class="cat-pill px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 border border-white/10 text-neutral-300 hover:text-white transition-all">
+            🇪🇬🇯🇴 Middle East
+          </button>
+          <button data-category="asia" class="cat-pill px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 border border-white/10 text-neutral-300 hover:text-white transition-all">
+            🇨🇳🇮🇳 Asia
+          </button>
+          <button data-category="europe" class="cat-pill px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 border border-white/10 text-neutral-300 hover:text-white transition-all">
+            🇮🇹 Europe
+          </button>
+          <button data-category="americas" class="cat-pill px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 border border-white/10 text-neutral-300 hover:text-white transition-all">
+            🇲🇽🇵🇪🇧🇷 Americas
+          </button>
+        </div>
+      </div>
+
+      <!-- Scrollable List of 8 Wonders -->
+      <div id="outliner-landmarks-list" class="flex-1 overflow-y-auto thin-scroll p-2 space-y-1.5"></div>
+
+      <!-- World Explorer Passport Progress Footer -->
+      <div class="p-2.5 border-t border-white/10 bg-black/30">
+        <div class="flex items-center justify-between text-[11px] mb-1">
+          <span id="passport-footer-title" class="font-medium text-neutral-300">World Explorer Passport</span>
+          <span id="passport-progress-label" class="font-mono-tech text-amber-300 font-semibold">0 / 8 Visited</span>
+        </div>
+        <div class="w-full h-2 rounded-full bg-[#11141c] overflow-hidden border border-white/10">
+          <div id="passport-progress-bar" class="h-full bg-gradient-to-r from-sky-400 via-emerald-400 to-amber-400 transition-all duration-500" style="width: 0%"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- WORLD WONDER EXPLORER CARD (Single-Slot Left Drawer) -->
+    <section id="landmark-inspector" class="hidden fixed top-14 left-2.5 bottom-11 w-[365px] max-w-[calc(100vw-20px)] z-30 blender-surface rounded-xl shadow-2xl border border-white/15 flex flex-col overflow-hidden transition-all duration-300">
+      <!-- Top Color Accent Bar -->
+      <div id="insp-accent-bar" class="h-1.5 w-full bg-amber-400 shrink-0"></div>
+
+      <!-- Card Header -->
+      <div class="px-3 pt-2.5 pb-2 flex items-start justify-between gap-1.5 border-b border-white/10 bg-black/25 shrink-0">
+        <div class="min-w-0">
+          <div class="flex items-center flex-wrap gap-1.5 mb-1">
+            <button id="btn-back-to-places" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-neutral-200 transition-colors">
+              ← Wonders
+            </button>
+            <span id="insp-badge" class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/25 text-amber-200 border border-amber-400/45">
+              🇪🇬 Ancient Wonder
+            </span>
+            <span id="insp-stamp-pill" class="stamp-pop text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
+              ✓ Stamp!
+            </span>
+          </div>
+          <h2 id="insp-title" class="text-base font-bold text-white leading-snug truncate">Great Pyramid of Giza</h2>
+          <p id="insp-subtitle" class="text-xs text-sky-200/90 font-medium truncate">Egypt — الهرم الأكبر بالجيزة</p>
+        </div>
+
+        <div class="flex items-center gap-1 shrink-0">
+          <!-- Audio Read-Aloud Button -->
+          <button id="btn-listen-audio" class="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/40 text-xs font-semibold text-sky-200 flex items-center gap-1.5 transition-all" title="Listen to Story Read Aloud">
+            <span id="listen-icon">🔊</span>
+            <span id="listen-label">Listen</span>
+          </button>
+
+          <button id="btn-close-inspector" class="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-neutral-400 hover:text-white transition-colors" title="Close Card (Esc)">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Scrollable Story, Size Comparison, Fun Fact, Mini Quiz & Geographic Data -->
+      <div id="insp-scroll-body" class="flex-1 min-h-0 overflow-y-auto thin-scroll p-3.5 space-y-3 text-xs leading-relaxed text-neutral-200">
+      <div class="bg-[#0d111a] border-b border-white/10 shrink-0">
+        <div class="px-3 py-1.5 flex items-center justify-between gap-2 bg-black/30 border-b border-white/5">
+          <div class="flex items-center gap-1">
+            <button id="pic-tab-kid" class="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-500 text-white shadow-sm transition-all flex items-center gap-1">
+              <span>🎨</span>
+              <span id="lbl-tab-kid">Kid Illustration</span>
+            </button>
+            <button id="pic-tab-real" class="px-2.5 py-1 rounded-md text-[11px] font-medium text-neutral-300 hover:text-white hover:bg-white/10 transition-all flex items-center gap-1">
+              <span>📸</span>
+              <span id="lbl-tab-real">Real Photo</span>
+            </button>
+          </div>
+          <span id="insp-index" class="text-[10px] font-mono-tech text-neutral-400">Wonder 1 of 8</span>
+        </div>
+
+        <div class="relative w-full h-[175px] overflow-hidden bg-[#080b12]">
+          <canvas id="kid-illustration-canvas" width="680" height="340" class="w-full h-full object-cover block"></canvas>
+
+          <div id="real-photo-wrapper" class="hidden absolute inset-0 bg-[#080b12] flex items-center justify-center">
+            <img id="real-wonder-photo" alt="World Wonder Photograph" class="w-full h-full object-cover" width="680" height="340" loading="lazy" decoding="async" />
+            <div id="real-photo-loading" class="absolute inset-0 flex flex-col items-center justify-center bg-[#090d16]/85 text-xs text-neutral-300 gap-1.5">
+              <div class="w-5 h-5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin"></div>
+              <span class="font-mono-tech text-[11px]">Loading Photograph...</span>
+            </div>
+            <div class="absolute bottom-0 inset-x-0 px-2.5 py-1 bg-gradient-to-t from-black/90 via-black/60 to-transparent text-[10px] font-mono-tech text-neutral-200 flex items-center justify-between">
+              <span id="real-caption-text">World Heritage Monument</span>
+              <span class="px-1.5 py-0.2 rounded bg-amber-500/30 text-amber-200 border border-amber-400/30">UNESCO</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+        <!-- Story Paragraphs -->
+        <div id="insp-story-container" class="space-y-2">
+          <p id="insp-kid-story-1" class="text-[13px] leading-relaxed text-neutral-100"></p>
+          <p id="insp-kid-story-2" class="text-xs leading-relaxed text-neutral-300"></p>
+        </div>
+
+        <!-- Visual Size / Age Comparison Bar -->
+        <div class="rounded-lg bg-[#151923] border border-white/10 p-2.5 space-y-2">
+          <div class="flex items-center justify-between">
+            <span id="lbl-size-title" class="text-[10px] font-bold uppercase tracking-wider text-sky-300 flex items-center gap-1">
+              <span>📏</span>
+              <span>How Big &amp; Old Is It?</span>
+            </span>
+            <span id="insp-scale-badge" class="text-[10px] font-mono-tech text-amber-300">4,500+ Years Old</span>
+          </div>
+
+          <div class="space-y-1.5">
+            <div>
+              <div class="flex justify-between text-[11px] mb-0.5">
+                <span id="comp-ref-label" class="text-sky-300 font-medium">Statue of Liberty (93 m)</span>
+                <span id="comp-ref-val" class="font-mono-tech text-neutral-400">67%</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-black/50 overflow-hidden">
+                <div id="comp-ref-bar" class="h-full rounded-full bg-sky-400 transition-all duration-500" style="width: 67%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] mb-0.5">
+                <span id="comp-wonder-label" class="text-amber-300 font-semibold">Great Pyramid (138.5 m)</span>
+                <span id="comp-wonder-val" class="font-mono-tech text-amber-300">100%</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-black/50 overflow-hidden">
+                <div id="comp-wonder-bar" class="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-500" style="width: 100%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 'Did You Know?' Fun Fact Box -->
+        <div id="insp-fact-box" class="rounded-lg bg-gradient-to-r from-amber-500/15 to-sky-500/15 border border-amber-400/35 p-2.5">
+          <div id="lbl-fun-fact-title" class="text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1 flex items-center gap-1.5">
+            <span>💡</span>
+            <span>Did You Know? Fun Fact!</span>
+          </div>
+          <p id="insp-fun-fact" class="text-xs text-amber-50/95 leading-relaxed"></p>
+        </div>
+
+        <!-- Interactive Mini Quiz -->
+        <div id="insp-quiz-box" class="rounded-lg bg-[#161a26] border border-indigo-400/30 p-2.5 space-y-2">
+          <div class="flex items-center justify-between">
+            <span id="lbl-quiz-title" class="text-[10px] font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1">
+              <span>🧠</span>
+              <span>World Explorer Mini Quiz</span>
+            </span>
+            <span id="quiz-status-badge" class="text-[10px] font-mono-tech text-neutral-400">Pick an answer!</span>
+          </div>
+          <p id="quiz-question" class="text-xs font-semibold text-white"></p>
+          <div id="quiz-options" class="space-y-1.5"></div>
+          <div id="quiz-feedback" class="hidden text-[11px] font-medium px-2.5 py-1.5 rounded-md"></div>
+        </div>
+
+        <!-- Expandable Geographic & Historical Telemetry -->
+        <details id="scientist-telemetry-details" class="rounded-lg bg-[#131720] border border-white/10 overflow-hidden">
+          <summary class="px-2.5 py-2 text-[11px] font-semibold text-neutral-300 hover:text-white cursor-pointer flex items-center justify-between bg-white/5">
+            <span class="flex items-center gap-1.5">
+              <span>🧭</span>
+              <span id="lbl-telemetry-title">Geographic &amp; Historical Data</span>
+            </span>
+            <span class="text-[10px] font-mono-tech text-neutral-400">Expand</span>
+          </summary>
+          <div class="p-2.5 space-y-2 border-t border-white/10">
+            <div class="grid grid-cols-2 gap-1.5 text-[11px]">
+              <div class="bg-black/35 px-2 py-1.5 rounded">
+                <div class="text-[9px] uppercase text-neutral-400">Coordinates</div>
+                <div id="insp-coords" class="font-mono-tech text-neutral-100">29.98°N, 31.13°E</div>
+              </div>
+              <div class="bg-black/35 px-2 py-1.5 rounded">
+                <div class="text-[9px] uppercase text-neutral-400">Built / Era</div>
+                <div id="insp-built" class="font-mono-tech text-amber-300 font-semibold">~2560 BCE</div>
+              </div>
+              <div class="bg-black/35 px-2 py-1.5 rounded">
+                <div class="text-[9px] uppercase text-neutral-400">Country</div>
+                <div id="insp-country" class="text-neutral-100 font-medium">Egypt</div>
+              </div>
+              <div class="bg-black/35 px-2 py-1.5 rounded">
+                <div class="text-[9px] uppercase text-neutral-400">Dimensions</div>
+                <div id="insp-size" class="text-sky-300 truncate">138.5 m tall</div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Tour Navigation Footer -->
+      <div class="px-3 py-2 bg-black/35 border-t border-white/10 flex items-center justify-between gap-1.5 shrink-0">
+        <button id="btn-prev-landmark" class="px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/15 border border-white/10 text-xs font-medium text-neutral-200 transition-colors">
+          ← Previous
+        </button>
+        <button id="btn-global-view" class="px-2.5 py-1.5 rounded-md bg-sky-500/20 hover:bg-sky-500/40 border border-sky-400/50 text-xs font-medium text-sky-200 transition-colors">
+          🌍 Globe
+        </button>
+        <button id="btn-next-landmark" class="px-3 py-1.5 rounded-md bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-400 hover:to-emerald-400 text-xs font-semibold text-white shadow transition-all">
+          Next Wonder →
+        </button>
+      </div>
+    </section>
+
+    <!-- HYPSOMETRIC & BATHYMETRIC ELEVATION LEGEND -->
+    <div id="mola-legend" class="hidden fixed bottom-11 right-2.5 z-20 blender-surface rounded-lg px-3 py-2 shadow-xl transition-all duration-300">
+      <div class="text-[10px] font-mono-tech uppercase tracking-wider text-neutral-300 mb-1">Earth Elevation &amp; Bathymetry</div>
+      <div class="w-44 h-2.5 rounded-sm bg-gradient-to-r from-[#0a1d56] via-[#1d70b8] via-[#2e9e5b] via-[#d9b44a] via-[#8c5a3c] to-[#ffffff] border border-white/20"></div>
+      <div class="flex justify-between text-[10px] font-mono-tech text-neutral-400 mt-1">
+        <span>-6 km</span>
+        <span>0 m</span>
+        <span>+3 km</span>
+        <span>+8.8 km</span>
+      </div>
+    </div>
+
+    <!-- RIGHT-SIDE BLENDER 3D CONTROLS PANEL ("N-PANEL") -->
+    <aside id="n-panel" class="fixed top-14 right-2.5 bottom-11 w-[255px] max-w-[calc(100vw-20px)] z-30 blender-surface rounded-xl shadow-2xl flex flex-col overflow-hidden transition-transform duration-300 ease-out translate-x-[290px]">
+      <div class="px-3.5 py-2 border-b border-white/10 flex items-center justify-between bg-black/30">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+          <span class="text-xs font-semibold tracking-wider uppercase text-neutral-200">3D Controls</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button id="btn-reset-params" class="text-[11px] font-medium px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white border border-white/10 transition-colors">
+            Reset
+          </button>
+          <button id="btn-close-npanel" class="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors" title="Hide 3D Controls (Key: N)">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto n-panel-scroll p-2.5 space-y-2.5">
+        <!-- SECTION 1: QUICK CAMERA BOOKMARKS -->
+        <div class="rounded-lg bg-[#1d222d]/85 border border-white/10 overflow-hidden">
+          <button class="accordion-toggle w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold text-neutral-200 hover:bg-white/5 transition-colors" data-target="sec-cameras">
+            <span class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+              Quick Views
+            </span>
+            <svg class="w-3.5 h-3.5 text-neutral-400 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div id="sec-cameras" class="p-2 border-t border-white/5 grid grid-cols-2 gap-1.5 text-[11px]">
+            <button data-cam-preset="global" class="cam-preset-btn px-2 py-1.5 rounded bg-[#131720] hover:bg-sky-500/25 border border-white/10 hover:border-sky-400/50 text-neutral-200 font-medium transition-all">
+              🌍 Global Earth
+            </button>
+            <button data-cam-preset="egypt" class="cam-preset-btn px-2 py-1.5 rounded bg-[#131720] hover:bg-sky-500/25 border border-white/10 hover:border-sky-400/50 text-neutral-200 font-medium transition-all">
+              🇪🇬 Giza &amp; Nile
+            </button>
+            <button data-cam-preset="himalayas" class="cam-preset-btn px-2 py-1.5 rounded bg-[#131720] hover:bg-sky-500/25 border border-white/10 hover:border-sky-400/50 text-neutral-200 font-medium transition-all">
+              🏔️ Himalayas
+            </button>
+            <button data-cam-preset="americas" class="cam-preset-btn px-2 py-1.5 rounded bg-[#131720] hover:bg-sky-500/25 border border-white/10 hover:border-sky-400/50 text-neutral-200 font-medium transition-all">
+              🌎 Americas
+            </button>
+            <button data-cam-preset="arctic" class="cam-preset-btn px-2 py-1.5 rounded bg-[#131720] hover:bg-sky-500/25 border border-white/10 hover:border-sky-400/50 text-neutral-200 font-medium transition-all">
+              ❄️ Arctic North
+            </button>
+            <button data-cam-preset="moon" class="cam-preset-btn px-2 py-1.5 rounded bg-[#131720] hover:bg-sky-500/25 border border-white/10 hover:border-sky-400/50 text-neutral-200 font-medium transition-all">
+              🌕 The Moon
+            </button>
+          </div>
+        </div>
+
+        <!-- SECTION 2: TERRAIN, CLOUDS & ATMOSPHERE -->
+        <div class="rounded-lg bg-[#1d222d]/85 border border-white/10 overflow-hidden">
+          <button class="accordion-toggle w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold text-neutral-200 hover:bg-white/5 transition-colors" data-target="sec-sculpt">
+            <span class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+              Terrain &amp; Atmosphere
+            </span>
+            <svg class="w-3.5 h-3.5 text-neutral-400 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div id="sec-sculpt" class="px-3 pb-3 pt-1.5 space-y-2.5 border-t border-white/5">
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Mountain Height</span>
+                <span id="val-displacement" class="font-mono-tech text-sky-400">1.00x</span>
+              </div>
+              <input id="slider-displacement" type="range" min="0" max="3.0" step="0.05" value="1.00" class="blender-slider">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Cloud Opacity</span>
+                <span id="val-clouds" class="font-mono-tech text-sky-400">0.58</span>
+              </div>
+              <input id="slider-clouds" type="range" min="0" max="1.0" step="0.02" value="0.58" class="blender-slider">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Night City Lights</span>
+                <span id="val-lights" class="font-mono-tech text-amber-400">1.25</span>
+              </div>
+              <input id="slider-lights" type="range" min="0" max="2.5" step="0.05" value="1.25" class="blender-slider">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Rotation Speed</span>
+                <span id="val-rot-speed" class="font-mono-tech text-sky-400">0.35x</span>
+              </div>
+              <input id="slider-rot-speed" type="range" min="0" max="3.0" step="0.05" value="0.35" class="blender-slider">
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 3: SUNLIGHT & CAMERA OPTICS -->
+        <div class="rounded-lg bg-[#1d222d]/85 border border-white/10 overflow-hidden">
+          <button class="accordion-toggle w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold text-neutral-200 hover:bg-white/5 transition-colors" data-target="sec-lighting">
+            <span class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="1" y1="12" x2="3" y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+              </svg>
+              Day / Night &amp; Optics
+            </span>
+            <svg class="w-3.5 h-3.5 text-neutral-400 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div id="sec-lighting" class="px-3 pb-3 pt-1.5 space-y-2.5 border-t border-white/5">
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Sun Angle (Day/Night)</span>
+                <span id="val-sun-az" class="font-mono-tech text-amber-400">38°</span>
+              </div>
+              <input id="slider-sun-az" type="range" min="-180" max="180" step="1" value="38" class="blender-slider">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Sun Elevation (Season)</span>
+                <span id="val-sun-el" class="font-mono-tech text-amber-400">16°</span>
+              </div>
+              <input id="slider-sun-el" type="range" min="-90" max="90" step="1" value="16" class="blender-slider">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Axial Tilt</span>
+                <span id="val-tilt" class="font-mono-tech text-sky-400">23.44°</span>
+              </div>
+              <input id="slider-tilt" type="range" min="0" max="45" step="0.05" value="23.44" class="blender-slider">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Camera FOV</span>
+                <span id="val-fov" class="font-mono-tech text-sky-400">42°</span>
+              </div>
+              <input id="slider-fov" type="range" min="20" max="75" step="1" value="42" class="blender-slider">
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 4: SCENE LAYERS -->
+        <div class="rounded-lg bg-[#1d222d]/85 border border-white/10 overflow-hidden">
+          <button class="accordion-toggle w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold text-neutral-200 hover:bg-white/5 transition-colors" data-target="sec-layers">
+            <span class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                <polyline points="2 17 12 22 22 17"/>
+                <polyline points="2 12 12 17 22 12"/>
+              </svg>
+              Scene Layers
+            </span>
+            <svg class="w-3.5 h-3.5 text-neutral-400 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div id="sec-layers" class="p-2.5 border-t border-white/5 grid grid-cols-2 gap-1.5 text-[11px]">
+            <label class="flex items-center gap-1.5 px-2 py-1.5 rounded bg-[#131720] hover:bg-white/5 cursor-pointer">
+              <input id="chk-atmosphere" type="checkbox" checked class="accent-sky-400">
+              <span class="text-neutral-300">Atmosphere</span>
+            </label>
+            <label class="flex items-center gap-1.5 px-2 py-1.5 rounded bg-[#131720] hover:bg-white/5 cursor-pointer">
+              <input id="chk-clouds" type="checkbox" checked class="accent-sky-400">
+              <span class="text-neutral-300">Clouds</span>
+            </label>
+            <label class="flex items-center gap-1.5 px-2 py-1.5 rounded bg-[#131720] hover:bg-white/5 cursor-pointer">
+              <input id="chk-moon" type="checkbox" checked class="accent-sky-400">
+              <span class="text-neutral-300">Moon</span>
+            </label>
+            <label class="flex items-center gap-1.5 px-2 py-1.5 rounded bg-[#131720] hover:bg-white/5 cursor-pointer">
+              <input id="chk-grid" type="checkbox" class="accent-sky-400">
+              <span class="text-neutral-300">Lat/Lon Grid</span>
+            </label>
+            <label class="col-span-2 flex items-center gap-1.5 px-2 py-1.5 rounded bg-[#131720] hover:bg-white/5 cursor-pointer">
+              <input id="chk-pins" type="checkbox" checked class="accent-sky-400">
+              <span class="text-neutral-300">3D Wonder Pins on Globe</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- BOTTOM TELEMETRY, CURSOR LAT/LON & STATUS BAR -->
+    <footer class="absolute bottom-2 left-2.5 right-2.5 z-30 flex items-center justify-between gap-2 pointer-events-none">
+      <div class="blender-surface rounded-lg px-3 py-1.5 flex items-center gap-2.5 text-[11px] font-mono-tech text-neutral-300 shadow-lg pointer-events-auto">
+        <span class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span id="telemetry-fps">60 FPS</span>
+        </span>
+        <span class="text-white/15">|</span>
+        <span class="hidden sm:inline">Earth: <strong class="text-white font-medium">6,371 km</strong></span>
+        <span class="text-white/15">|</span>
+        <span id="telemetry-cursor" class="text-sky-300">Hover Earth for Lat/Lon</span>
+      </div>
+
+      <div class="hidden md:flex blender-surface rounded-lg px-3 py-1.5 items-center gap-2.5 text-[11px] text-neutral-400 shadow-lg">
+        <span id="status-tool-hint" class="text-neutral-200 font-medium">Click any glowing pin to explore the Seven Wonders!</span>
+        <span class="text-white/15">|</span>
+        <span><strong class="text-neutral-200">1-4</strong> Shading</span>
+        <span class="text-white/15">·</span>
+        <span><strong class="text-neutral-200">M</strong> Measure</span>
+        <span class="text-white/15">·</span>
+        <span><strong class="text-neutral-200">N</strong> Controls</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Main Three.js Application Logic -->
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+    // =========================================================================
+    // 1. DETERMINISTIC 3D SPHERICAL NOISE (fBm & RIDGED)
+    // =========================================================================
+    class SphericalNoise3D {
+      constructor(seed = 2026) {
+        this.perm = new Uint8Array(512);
+        const p = new Uint8Array(256);
+        for (let i = 0; i < 256; i++) p[i] = i;
+        let s = seed >>> 0;
+        for (let i = 255; i > 0; i--) {
+          s = (s * 1664525 + 1013904223) >>> 0;
+          const j = s % (i + 1);
+          const tmp = p[i];
+          p[i] = p[j];
+          p[j] = tmp;
+        }
+        for (let i = 0; i < 512; i++) this.perm[i] = p[i & 255];
+      }
+
+      noise(x, y, z) {
+        const X = Math.floor(x) & 255;
+        const Y = Math.floor(y) & 255;
+        const Z = Math.floor(z) & 255;
+        x -= Math.floor(x);
+        y -= Math.floor(y);
+        z -= Math.floor(z);
+        const u = x * x * x * (x * (x * 6 - 15) + 10);
+        const v = y * y * y * (y * (y * 6 - 15) + 10);
+        const w = z * z * z * (z * (z * 6 - 15) + 10);
+
+        const p = this.perm;
+        const A = p[X] + Y, AA = p[A] + Z, AB = p[A + 1] + Z;
+        const B = p[X + 1] + Y, BA = p[B] + Z, BB = p[B + 1] + Z;
+
+        const grad = (hash, gx, gy, gz) => {
+          const h = hash & 15;
+          const gu = h < 8 ? gx : gy;
+          const gv = h < 4 ? gy : (h === 12 || h === 14 ? gx : gz);
+          return ((h & 1) === 0 ? gu : -gu) + ((h & 2) === 0 ? gv : -gv);
+        };
+
+        const x1 = grad(p[AA], x, y, z) + u * (grad(p[BA], x - 1, y, z) - grad(p[AA], x, y, z));
+        const x2 = grad(p[AB], x, y - 1, z) + u * (grad(p[BB], x - 1, y - 1, z) - grad(p[AB], x, y - 1, z));
+        const y1 = x1 + v * (x2 - x1);
+
+        const x3 = grad(p[AA + 1], x, y, z - 1) + u * (grad(p[BA + 1], x - 1, y, z - 1) - grad(p[AA + 1], x, y, z - 1));
+        const x4 = grad(p[AB + 1], x, y - 1, z - 1) + u * (grad(p[BB + 1], x - 1, y - 1, z - 1) - grad(p[AB + 1], x, y - 1, z - 1));
+        const y2 = x3 + v * (x4 - x3);
+
+        return y1 + w * (y2 - y1);
+      }
+
+      fbm(x, y, z, octaves = 5) {
+        let sum = 0, amp = 0.5, freq = 1.0, norm = 0;
+        for (let i = 0; i < octaves; i++) {
+          sum += amp * this.noise(x * freq, y * freq, z * freq);
+          norm += amp;
+          freq *= 2.05;
+          amp *= 0.5;
+        }
+        return sum / norm;
+      }
+
+      ridged(x, y, z, octaves = 4) {
+        let sum = 0, amp = 0.5, freq = 1.0, prev = 1.0;
+        for (let i = 0; i < octaves; i++) {
+          let n = 1.0 - Math.abs(this.noise(x * freq, y * freq, z * freq));
+          n = n * n;
+          sum += n * amp * prev;
+          prev = Math.max(0.2, Math.min(1.0, n * 1.4));
+          freq *= 2.15;
+          amp *= 0.5;
+        }
+        return sum;
+      }
+    }
+
+    // =========================================================================
+    // 2. SPHERICAL COORDINATES & THE SEVEN WONDERS OF THE WORLD (BILINGUAL)
+    // =========================================================================
+    const EARTH_RADIUS_3D = 2.0;
+    const EARTH_REAL_RADIUS_KM = 6371.0;
+    const BASE_DISPLACEMENT_SCALE = 0.068;
+
+    function latLonToUnitVec(latDeg, lonDeg) {
+      const u = (((lonDeg + 180) % 360) + 360) % 360 / 360;
+      const v = (latDeg + 90) / 180;
+      const phi = u * Math.PI * 2;
+      const theta = (1 - v) * Math.PI;
+      return new THREE.Vector3(
+        -Math.cos(phi) * Math.sin(theta),
+        Math.cos(theta),
+        Math.sin(phi) * Math.sin(theta)
+      ).normalize();
+    }
+
+    function unitVecToLatLon(unitVec) {
+      const v = unitVec.clone().normalize();
+      const lat = THREE.MathUtils.radToDeg(Math.asin(Math.max(-1, Math.min(1, v.y))));
+      let phi = Math.atan2(v.z, -v.x);
+      if (phi < 0) phi += Math.PI * 2;
+      let lon = (phi / (Math.PI * 2)) * 360 - 180;
+      if (lon > 180) lon -= 360;
+      if (lon < -180) lon += 360;
+      return { lat, lon };
+    }
+
+    function formatLatLon(lat, lon) {
+      const ns = lat >= 0 ? 'N' : 'S';
+      const ew = lon >= 0 ? 'E' : 'W';
+      return `${Math.abs(lat).toFixed(2)}°${ns}, ${Math.abs(lon).toFixed(2)}°${ew}`;
+    }
+
+    // The New Seven Wonders of the World + The Great Pyramid of Giza (Honorary Wonder)
+    const WORLD_WONDERS = [
+      {
+        id: 'giza-pyramid',
+        emoji: '🇪🇬',
+        category: 'mena',
+        nameEn: 'Great Pyramid of Giza',
+        nameAr: 'الهرم الأكبر بالجيزة',
+        countryEn: 'Egypt',
+        countryAr: 'مصر',
+        typeEn: 'Ancient Wonder (Honorary)',
+        typeAr: 'عجيبة الدنيا القديمة الخالدة',
+        lat: 29.9792,
+        lon: 31.1342,
+        builtEn: '~2560 BCE',
+        builtAr: 'حوالي 2560 ق.م',
+        sizeEn: '138.5 m tall',
+        sizeAr: 'ارتفاع 138.5 متر',
+        wikiFile: 'Kheops-Pyramid.jpg',
+        camDist: 3.35,
+        color: '#f59e0b',
+        scaleBadgeEn: '4,500+ Years Old!',
+        scaleBadgeAr: 'عمره أكثر من 4,500 عام!',
+        compRefEn: 'Statue of Liberty (93 m)',
+        compRefAr: 'تمثال الحرية (93 متر)',
+        compRefPct: 67,
+        compWonderEn: 'Great Pyramid of Giza (138.5 m)',
+        compWonderAr: 'الهرم الأكبر بالجيزة (138.5 متر)',
+        compWonderPct: 100,
+        story1En: 'Standing proudly beside the Nile River in Egypt, the Great Pyramid of Giza is the oldest of all the Wonders and the ONLY survivor from the Seven Wonders of the Ancient World! Built for Pharaoh Khufu, it is made of about 2.3 million giant limestone and granite blocks.',
+        story2En: 'For more than 3,800 years, it was the tallest human-made structure on planet Earth! Its four sides line up almost perfectly with North, South, East, and West.',
+        funFactEn: 'Originally, the Great Pyramid was covered in smooth, bright white Tura limestone that gleamed like a giant diamond in the Egyptian sunshine!',
+        story1Ar: 'يقف الهرم الأكبر بالجيزة شامخاً بجوار نهر النيل في مصر، وهو أقدم العجائب على الإطلاق والوحيد الباقي من عجائب الدنيا السبع القديمة! بُني للملك خوفو من حوالي 2.3 مليون كتلة ضخمة من الحجر الجيري والجرانيت.',
+        story2Ar: 'ظل الهرم الأكبر أطول بناء صنعه الإنسان على وجه الأرض لأكثر من 3,800 عام! وتتجه أضلاعه الأربعة بدقة مذهلة نحو الجهات الأصلية: الشمال والجنوب والشرق والغرب.',
+        funFactAr: 'كان الهرم الأكبر مغطى في الأصل بطبقة ملساء من الحجر الجيري الأبيض اللامع، فكان يتلألأ تحت شمس مصر كأنه جوهرة عملاقة!',
+        quiz: {
+          qEn: 'How many giant stone blocks were used to build the Great Pyramid of Giza?',
+          oEn: ['About 2.3 million blocks', 'Only 500 bricks', '10,000 wooden logs'],
+          expEn: 'Amazing! Over 2.3 million heavy stone blocks were fitted together with incredible precision.',
+          qAr: 'كم عدد الكتل الحجرية الضخمة التي استُخدمت في بناء الهرم الأكبر بالجيزة؟',
+          oAr: ['حوالي 2.3 مليون كتلة حجرية', '500 طوبة فقط', '10 آلاف جذع شجرة'],
+          expAr: 'أحسنت! استُخدم أكثر من 2.3 مليون كتلة حجرية عملاقة رُصّت بدقة هندسية مذهلة.'
+        }
+      },
+      {
+        id: 'great-wall',
+        emoji: '🇨🇳',
+        category: 'asia',
+        nameEn: 'Great Wall of China',
+        nameAr: 'سور الصين العظيم',
+        countryEn: 'China',
+        countryAr: 'الصين',
+        typeEn: 'New 7 Wonders of the World',
+        typeAr: 'عجائب الدنيا السبع الجديدة',
+        lat: 40.4319,
+        lon: 116.5704,
+        builtEn: '7th Century BCE – 1644 CE',
+        builtAr: 'القرن 7 ق.م – 1644 م',
+        sizeEn: '21,196 km total length',
+        sizeAr: 'طوله 21,196 كيلومتر',
+        wikiFile: 'The_Great_Wall_of_China_at_Jinshanling-edit.jpg',
+        camDist: 3.55,
+        color: '#ef4444',
+        scaleBadgeEn: 'Longer than Half of Earth’s Equator!',
+        scaleBadgeAr: 'أطول من نصف محيط الكرة الأرضية!',
+        compRefEn: 'Width of United States (~4,500 km)',
+        compRefAr: 'عرض الولايات المتحدة (4,500 كم)',
+        compRefPct: 22,
+        compWonderEn: 'Great Wall All Branches (21,196 km)',
+        compWonderAr: 'إجمالي فروع سور الصين العظيم (21,196 كم)',
+        compWonderPct: 100,
+        story1En: 'Winding like a giant stone dragon across misty green mountains and deserts, the Great Wall of China is the longest structure ever built by humans! Emperors connected walls and watchtowers over centuries to protect northern China.',
+        story2En: 'Soldiers used watchtowers along the ridge to send smoke signals by day and fire beacons by night to warn of danger miles away.',
+        funFactEn: 'Builders mixed sticky rice flour into the mortar to glue the bricks together—and it made the wall so strong that weeds still cannot grow between many stones!',
+        story1Ar: 'يلتف سور الصين العظيم مثل تنين حجري عملاق فوق الجبال الخضراء والصحاري، وهو أطول بناء شيده الإنسان في التاريخ! ربط الأباطرة الأسوار وأبراج المراقبة عبر قرون لحماية شمال الصين.',
+        story2Ar: 'استخدم الجنود أبراج المراقبة لإرسال إشارات الدخان نهاراً ومشاعل النار ليلاً لتحذير الحراس على بُعد أميال.',
+        funFactAr: 'خلط البناؤون دقيق الأرز اللزج مع الملاط لتثبيت الطوب، مما جعل السور قوياً جداً لدرجة أن الأعشاب لا تستطيع النمو بين أحجاره حتى اليوم!',
+        quiz: {
+          qEn: 'What surprising kitchen ingredient helped glue the Great Wall’s bricks together?',
+          oEn: ['Sticky rice mortar', 'Chocolate syrup', 'Olive oil'],
+          expEn: 'Correct! Sticky rice soup mixed with slaked lime created a super-strong ancient mortar.',
+          qAr: 'ما المكون الغذائي المفاجئ الذي أضافه البناؤون لتقوية ملاط سور الصين العظيم؟',
+          oAr: ['دقيق الأرز اللزج', 'الشوكولاتة السائلة', 'زيت الزيتون'],
+          expAr: 'إجابة صحيحة! أضاف البناؤون الأرز اللزج إلى الجير لصنع ملاط فائق القوة.'
+        }
+      },
+      {
+        id: 'petra',
+        emoji: '🇯🇴',
+        category: 'mena',
+        nameEn: 'Petra — The Rose City',
+        nameAr: 'البتراء — المدينة الوردية',
+        countryEn: 'Jordan',
+        countryAr: 'الأردن',
+        typeEn: 'New 7 Wonders of the World',
+        typeAr: 'عجائب الدنيا السبع الجديدة',
+        lat: 30.3285,
+        lon: 35.4444,
+        builtEn: '~312 BCE (Nabataeans)',
+        builtAr: 'حوالي 312 ق.م (الأنباط)',
+        sizeEn: '39 m tall Al-Khazneh facade',
+        sizeAr: 'واجهة الخزنة بارتفاع 39 متر',
+        wikiFile: 'Al_Khazneh_Petra_edit_2.jpg',
+        camDist: 3.35,
+        color: '#fb7185',
+        scaleBadgeEn: 'Carved Straight Into Pink Cliffs!',
+        scaleBadgeAr: 'منحوتة بالكامل داخل الصخر الوردي!',
+        compRefEn: '10-Story Building (~30 m)',
+        compRefAr: 'مبنى من 10 طوابق (30 متر)',
+        compRefPct: 76,
+        compWonderEn: 'Petra Treasury Al-Khazneh (39 m)',
+        compWonderAr: 'واجهة الخزنة في البتراء (39 متر)',
+        compWonderPct: 100,
+        story1En: 'Hidden inside a narrow, winding desert canyon called the Siq in Jordan lies Petra—an entire ancient city carved directly out of rose-red sandstone cliffs! Its most famous temple, Al-Khazneh (The Treasury), appears suddenly as you walk out of the canyon.',
+        story2En: 'The clever Nabataean people built dams, cisterns, and stone water pipes that turned this dry desert valley into a lush oasis with gardens and fountains.',
+        funFactEn: 'Because the sandstone rock changes color from pink to red, orange, and gold as the sun moves, Petra is famously called the "Rose-Red City"!',
+        story1Ar: 'تختبئ البتراء داخل ممر صخري ضيق يُسمى "السيق" في الأردن، وهي مدينة أثرية كاملة منحوتة مباشرة في جبال الحجر الرملي الوردي! وتظهر أشهر واجهاتها "الخزنة" فجأة عند نهاية الممر الضيق.',
+        story2Ar: 'ابتكر الأنباط نظاماً عبقرياً من السدود والقنوات الحجرية لجمع مياه الأمطار، فحولوا هذا الوادي الصحراوي إلى واحة خضراء مليئة بالحدائق والنوافير.',
+        funFactAr: 'لأن الصخور يتغير لونها بين الوردي والأحمر والذهبي مع حركة الشمس، تُلقّب البتراء باسم "المدينة الوردية"!',
+        quiz: {
+          qEn: 'How was the ancient city of Petra created in Jordan?',
+          oEn: ['Carved directly into rose-red sandstone cliffs', 'Built out of glass bricks', 'Floated on a wooden raft'],
+          expEn: 'Spot on! Skilled stone carvers sculpted temples and homes right out of living rock.',
+          qAr: 'كيف بُنيت مدينة البتراء الأثرية في الأردن؟',
+          oAr: ['نُحتت مباشرة في الصخور الرملية الوردية', 'بُنيت من الزجاج الملون', 'طفت فوق بحيرة خشبية'],
+          expAr: 'ممتاز! نحت الأنباط المعابد والمنازل مباشرة داخل الصخور الجبلية الوردية.'
+        }
+      },
+      {
+        id: 'colosseum',
+        emoji: '🇮🇹',
+        category: 'europe',
+        nameEn: 'The Colosseum',
+        nameAr: 'الكولوسيوم',
+        countryEn: 'Italy (Rome)',
+        countryAr: 'إيطاليا (روما)',
+        typeEn: 'New 7 Wonders of the World',
+        typeAr: 'عجائب الدنيا السبع الجديدة',
+        lat: 41.8902,
+        lon: 12.4922,
+        builtEn: '70 – 80 CE',
+        builtAr: '70 – 80 ميلادية',
+        sizeEn: '50,000+ spectator seats',
+        sizeAr: 'يتسع لأكثر من 50,000 متفرج',
+        wikiFile: 'Colosseo_2020.jpg',
+        camDist: 3.40,
+        color: '#fb923c',
+        scaleBadgeEn: 'World’s Largest Ancient Amphitheater!',
+        scaleBadgeAr: 'أكبر مدرج أثري في العالم!',
+        compRefEn: 'Modern School Stadium (~5,000 seats)',
+        compRefAr: 'ملعب رياضي صغير (5,000 مقعد)',
+        compRefPct: 12,
+        compWonderEn: 'Roman Colosseum (50,000+ seats)',
+        compWonderAr: 'مدرج الكولوسيوم الروماني (50,000+ مقعد)',
+        compWonderPct: 100,
+        story1En: 'In the heart of Rome, Italy stands the Colosseum—the grandest ancient sports stadium ever constructed! Eighty arched entrances allowed 50,000 cheering spectators to enter and find their seats in just minutes.',
+        story2En: 'Underneath the wooden arena floor was a secret two-story maze of tunnels, cages, and wooden elevators (called the Hypogeum) that lifted scenery and animals straight onto the stage!',
+        funFactEn: 'The Colosseum even had a giant retractable canvas sunshade (the Velarium) operated by Roman sailors to keep spectators cool on sunny days!',
+        story1Ar: 'في قلب العاصمة الإيطالية روما يقف الكولوسيوم، أعظم مدرج رياضي في العالم القديم! سمحت بواباته المقوسة الثمانون بدخول أكثر من 50 ألف متفرج وجلوسهم في دقائق معدودة.',
+        story2Ar: 'تحت أرضية الساحة الخشبية كانت توجد متاهة سرية من الأنفاق والمصاعد الخشبية (تُسمى الهيبوجيوم) لرفع الديكورات والحيوانات فجأة إلى وسط الساحة!',
+        funFactAr: 'كان للكولوسيوم مظلة قماشية عملاقة قابلة للسحب لتظليل المتفرجين وحمايتهم من حرارة الشمس!',
+        quiz: {
+          qEn: 'What was hidden underneath the floor of the Roman Colosseum?',
+          oEn: ['A secret maze of tunnels and trapdoor elevators', 'An underground ice-skating rink', 'A submarine harbor'],
+          expEn: 'Bravo! The underground Hypogeum used ropes and pulleys to raise stage props into the arena.',
+          qAr: 'ماذا كان يختبئ تحت أرضية مدرج الكولوسيوم في روما؟',
+          oAr: ['متاهة سرية من الأنفاق والمصاعد الخشبية', 'حلبة للتزلج على الجليد', 'ميناء للغواصات'],
+          expAr: 'أحسنت! استُخدمت الأنفاق والمصاعد السفلية لرفع الديكورات إلى وسط الحلبة.'
+        }
+      },
+      {
+        id: 'chichen-itza',
+        emoji: '🇲🇽',
+        category: 'americas',
+        nameEn: 'Chichén Itzá (El Castillo)',
+        nameAr: 'تشيتشن إيتزا (هرم كوكولكان)',
+        countryEn: 'Mexico',
+        countryAr: 'المكسيك',
+        typeEn: 'New 7 Wonders of the World',
+        typeAr: 'عجائب الدنيا السبع الجديدة',
+        lat: 20.6843,
+        lon: -88.5678,
+        builtEn: '~600 – 1200 CE (Maya)',
+        builtAr: 'حوالي 600 – 1200 م (المايا)',
+        sizeEn: '30 m tall · 365 steps',
+        sizeAr: 'ارتفاع 30 متر · 365 درجة',
+        wikiFile: 'Chichen_Itza_3.jpg',
+        camDist: 3.45,
+        color: '#34d399',
+        scaleBadgeEn: 'A Giant Stone Calendar Pyramid!',
+        scaleBadgeAr: 'هرم حجري يعمل كتقويم فلكي!',
+        compRefEn: 'Days in 1 Earth Year (365 days)',
+        compRefAr: 'عدد أيام السنة (365 يوماً)',
+        compRefPct: 100,
+        compWonderEn: 'Steps on El Castillo Pyramid (365 steps)',
+        compWonderAr: 'عدد درجات هرم كوكولكان (365 درجة)',
+        compWonderPct: 100,
+        story1En: 'Rising above the lush green Yucatán jungle of Mexico is Chichén Itzá, a brilliant ancient city built by the Maya civilization. Its centerpiece is El Castillo (Temple of Kukulcán), a step pyramid designed like a giant stone calendar!',
+        story2En: 'Each of the pyramid’s four stairways has 91 steps—and when you add the top temple platform, that equals 365 steps, one for every single day of the year!',
+        funFactEn: 'Twice a year on the spring and autumn equinoxes, sunlight casts a shadow along the stairs that looks like a giant snake slithering down the pyramid!',
+        story1Ar: 'يرتفع موقع تشيتشن إيتزا وسط غابات يوكاتان الخضراء في المكسيك، وهو مدينة أثرية بناها شعب المايا، ويتوسطها هرم "إل كاستيو" المصمم كتقويم فلكي حجري عبقري!',
+        story2Ar: 'يحتوي كل جانب من جوانب الهرم الأربعة على 91 درجة، ومع إضافة المنصة العلوية يصبح المجموع 365 درجة بعدد أيام السنة!',
+        funFactAr: 'مرتين في العام (في الاعتدالين الربيعي والخريفي)، ترسم أشعة الشمس ظلاً متموجاً على الدرج يبدو كأنه ثعبان عملاق ينزلق إلى أسفل الهرم!',
+        quiz: {
+          qEn: 'Why does the main pyramid at Chichén Itzá have 365 steps in total?',
+          oEn: ['One step for every day of the 365-day year', 'Because 365 is the lucky number of jaguars', 'They ran out of stones'],
+          expEn: 'You got it! The Maya were master astronomers who built calendar secrets right into their architecture.',
+          qAr: 'لماذا يحتوي الهرم الرئيسي في تشيتشن إيتزا على 365 درجة؟',
+          oAr: ['درجة واحدة لكل يوم من أيام السنة (365 يوماً)', 'لأنه رقم حظ النمور', 'لأن الأحجار نفدت منهم'],
+          expAr: 'إجابة رائعة! برع شعب المايا في علم الفلك وصمموا الهرم كتقويم سنوي دقيق.'
+        }
+      },
+      {
+        id: 'machu-picchu',
+        emoji: '🇵🇪',
+        category: 'americas',
+        nameEn: 'Machu Picchu',
+        nameAr: 'ماتشو بيتشو',
+        countryEn: 'Peru',
+        countryAr: 'بيرو',
+        typeEn: 'New 7 Wonders of the World',
+        typeAr: 'عجائب الدنيا السبع الجديدة',
+        lat: -13.1631,
+        lon: -72.5450,
+        builtEn: '~1450 CE (Inca Empire)',
+        builtAr: 'حوالي 1450 م (إمبراطورية الإنكا)',
+        sizeEn: '2,430 m above sea level',
+        sizeAr: 'ارتفاع 2,430 متر فوق سطح البحر',
+        wikiFile: 'Machu_Picchu,_Peru.jpg',
+        camDist: 3.45,
+        color: '#10b981',
+        scaleBadgeEn: 'Lost City High in the Clouds!',
+        scaleBadgeAr: 'المدينة المفقودة فوق السحاب!',
+        compRefEn: 'Low Cumulus Clouds (~2,000 m)',
+        compRefAr: 'ارتفاع السحب المنخفضة (2,000 متر)',
+        compRefPct: 82,
+        compWonderEn: 'Machu Picchu Ridge (2,430 m high)',
+        compWonderAr: 'قمة ماتشو بيتشو (2,430 متر)',
+        compWonderPct: 100,
+        story1En: 'Perched high on a dramatic green ridge in the Andes Mountains of Peru, Machu Picchu is a 15th-century Inca citadel surrounded by swirling clouds and steep jungle peaks.',
+        story2En: 'Inca builders carved green farming terraces into the mountainside and fit huge granite stones together without any cement or mortar—so tightly that not even a thin knife blade fits between them!',
+        funFactEn: 'Because Machu Picchu uses mortar-free "ashlar" stone blocks, the walls can wiggle slightly during earthquakes and settle back into place without falling down!',
+        story1Ar: 'تتربع قلعة ماتشو بيتشو فوق قمة جبلية شاهقة في جبال الأنديز في بيرو، وهي مدينة أثرية من القرن الخامس عشر بناها شعب الإنكا وسط الغيوم والقمم الخضراء.',
+        story2Ar: 'نحت الإنكا مدرجات زراعية على سفوح الجبال ورصّوا أحجار الجرانيت الضخمة بدون أي إسمنت أو ملاط، بدقة تمنع مرور شفرة رفيعة بين حجرين!',
+        funFactAr: 'بفضل رصّ الأحجار بدون ملاط، تهتز الجدران قليلاً أثناء الزلازل ثم تعود لمكانها دون أن تنهار!',
+        quiz: {
+          qEn: 'How did the Inca builders keep Machu Picchu’s stone walls standing strong without cement?',
+          oEn: ['Carving stones to lock together like a 3D jigsaw puzzle', 'Using giant rubber bands', 'Freezing them with snow'],
+          expEn: 'Awesome! Precision-cut granite blocks interlock tightly and resist earthquakes.',
+          qAr: 'كيف حافظ بناؤو الإنكا على تماسك جدران ماتشو بيتشو دون استخدام الإسمنت؟',
+          oAr: ['نحت الأحجار لتتعاشق بدقة كأنها أحجية ثلاثية الأبعاد', 'باستخدام أربطة مطاطية', 'بتجميدها بالثلج'],
+          expAr: 'ممتاز! تتعاشق كتل الجرانيت بدقة فائقة مما يجعلها مقاومة للزلازل.'
+        }
+      },
+      {
+        id: 'taj-mahal',
+        emoji: '🇮🇳',
+        category: 'asia',
+        nameEn: 'Taj Mahal',
+        nameAr: 'تاج محل',
+        countryEn: 'India (Agra)',
+        countryAr: 'الهند (أغرا)',
+        typeEn: 'New 7 Wonders of the World',
+        typeAr: 'عجائب الدنيا السبع الجديدة',
+        lat: 27.1751,
+        lon: 78.0421,
+        builtEn: '1632 – 1653 CE',
+        builtAr: '1632 – 1653 ميلادية',
+        sizeEn: '73 m tall white marble dome',
+        sizeAr: 'ارتفاع القبة الرخامية 73 متر',
+        wikiFile: 'Taj_Mahal_(Edited).jpeg',
+        camDist: 3.40,
+        color: '#38bdf8',
+        scaleBadgeEn: 'Crown Palace of White Marble!',
+        scaleBadgeAr: 'تحفة الرخام الأبيض المتلألئ!',
+        compRefEn: 'Leaning Tower of Pisa (57 m)',
+        compRefAr: 'برج بيزا المائل (57 متر)',
+        compRefPct: 78,
+        compWonderEn: 'Taj Mahal Central Dome (73 m)',
+        compWonderAr: 'قبة تاج محل الرئيسية (73 متر)',
+        compWonderPct: 100,
+        story1En: 'Rising beside the Yamuna River in Agra, India, the Taj Mahal is a breathtaking palace of pure white marble decorated with thousands of inlaid semi-precious gemstones like jade, turquoise, and lapis lazuli.',
+        story2En: 'Over 20,000 artisans and 1,000 elephants worked together to create its symmetrical gardens, reflecting pool, central onion dome, and four graceful minarets.',
+        funFactEn: 'Look closely at the four tall corner towers (minarets): they lean slightly OUTWARD on purpose so that in an earthquake they would fall away from the main dome!',
+        story1Ar: 'يتألق تاج محل على ضفاف نهر يامونا في مدينة أغرا بالهند، وهو صرح مذهل من الرخام الأبيض النقي المرصّع بآلاف الأحجار شبه الكريمة مثل اليشم والفيروز واللازورد.',
+        story2Ar: 'تعاون أكثر من 20 ألف حرفي و1,000 فيل في تشييد حدائقه المتناظرة وبركته العاكسة وقبته الرئيسية ومآذنه الأربع الرشيقة.',
+        funFactAr: 'تميل المآذن الأربع في الزوايا قليلاً نحو الخارج عمداً حتى تسقط بعيداً عن القبة الرئيسية إذا حدث زلزال!',
+        quiz: {
+          qEn: 'Why do the four tall corner towers of the Taj Mahal lean slightly outward?',
+          oEn: ['So they fall away from the central dome during an earthquake', 'Because the wind blew them', 'To hold giant basketball hoops'],
+          expEn: 'Smart engineering! Tilting the minarets slightly outward protects the central marble dome.',
+          qAr: 'لماذا تميل المآذن الأربع في أركان تاج محل قليلاً نحو الخارج؟',
+          oAr: ['لحماية القبة الرئيسية إذا حدث زلزال', 'بسبب الرياح القوية', 'لتعليق فوانيس عملاقة'],
+          expAr: 'هندسة ذكية! ميلان المآذن للخارج يحمي القبة الوسطى في حال وقوع زلزال.'
+        }
+      },
+      {
+        id: 'christ-redeemer',
+        emoji: '🇧🇷',
+        category: 'americas',
+        nameEn: 'Christ the Redeemer',
+        nameAr: 'تمثال المسيح الفادي',
+        countryEn: 'Brazil (Rio de Janeiro)',
+        countryAr: 'البرازيل (ريو دي جانيرو)',
+        typeEn: 'New 7 Wonders of the World',
+        typeAr: 'عجائب الدنيا السبع الجديدة',
+        lat: -22.9519,
+        lon: -43.2105,
+        builtEn: '1922 – 1931 CE',
+        builtAr: '1922 – 1931 ميلادية',
+        sizeEn: '38 m tall · 28 m arm span',
+        sizeAr: 'ارتفاع 38 متر · عرض الذراعين 28 متر',
+        wikiFile: 'Cristo_Redentor_-_Rio_de_Janeiro,_Brasil.jpg',
+        camDist: 3.45,
+        color: '#60a5fa',
+        scaleBadgeEn: '710 m High Above Rio’s Ocean Bay!',
+        scaleBadgeAr: 'على قمة جبل بارتفاع 710 أمتار!',
+        compRefEn: 'School Bus Length (~12 m)',
+        compRefAr: 'طول حافلة مدرسية (12 متر)',
+        compRefPct: 43,
+        compWonderEn: 'Outstretched Arm Span (28 m wide)',
+        compWonderAr: 'المسافة بين الذراعين (28 متر)',
+        compWonderPct: 100,
+        story1En: 'Standing atop the 710-meter granite peak of Mount Corcovado in Rio de Janeiro, Brazil, Christ the Redeemer overlooks golden beaches, Sugarloaf Mountain, and the sparkling Atlantic Ocean.',
+        story2En: 'Its outer surface is covered in a mosaic of six million tiny triangular soapstone tiles, and every piece of the statue was carried up the steep mountain on a cogwheel railway!',
+        funFactEn: 'Because it stands so high on a mountain peak, lightning strikes the statue several times a year—so it is fitted with special lightning rods along its arms and head!',
+        story1Ar: 'يقف تمثال المسيح الفادي فوق قمة جبل كوركوفادو بارتفاع 710 أمتار في مدينة ريو دي جانيرو بالبرازيل، مطلاً على الشواطئ الذهبية وجبل رغيف السكر والمحيط الأطلسي.',
+        story2Ar: 'يغطي سطحه الخارجي فسيفساء مكونة من ستة ملايين قطعة مثلثة صغيرة من الحجر الأملس، وقد نُقلت جميع أجزائه إلى قمة الجبل عبر سكة حديدية جبلية!',
+        funFactAr: 'بسبب ارتفاعه الشاهق فوق قمة الجبل، تضربه الصواعق عدة مرات كل عام، ولذلك زُوّد بمانعات صواعق خاصة على ذراعيه ورأسه!',
+        quiz: {
+          qEn: 'How many tiny triangular soapstone tiles cover the outer surface of Christ the Redeemer?',
+          oEn: ['About 6 million tiles', 'Only 12 giant tiles', '1,000 glass mirrors'],
+          expEn: 'Right on! Millions of pale green-grey soapstone tiles protect it from rain and sun.',
+          qAr: 'كم عدد قطع الحجر الأملس المثلثة الصغيرة التي تغطي السطح الخارجي للتمثال؟',
+          oAr: ['حوالي 6 ملايين قطعة', '12 قطعة كبيرة فقط', '1,000 مرآة زجاجية'],
+          expAr: 'إجابة صحيحة! تغطيه 6 ملايين قطعة صغيرة لحمايته من الأمطار وأشعة الشمس.'
+        }
+      }
+    ].map((w, index) => ({
+      ...w,
+      index,
+      unitPos: latLonToUnitVec(w.lat, w.lon),
+      surfaceHeight01: 0.55
+    }));
+
+    // =========================================================================
+    // 3. THREE.JS SCENE, RENDERER, CAMERA & LIGHTING RIG
+    // =========================================================================
+    const canvas = document.getElementById('earth-canvas');
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x03050a);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 200);
+    // Start facing Africa / Europe / Middle East / Asia so Giza, Petra, Colosseum & Taj Mahal greet the user!
+    camera.position.set(2.4, 2.2, 5.4);
+
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 2.45;
+    controls.maxDistance = 16.0;
+    controls.rotateSpeed = 0.72;
+    controls.zoomSpeed = 0.85;
+
+    let cameraFlyAnim = null;
+    controls.addEventListener('start', () => {
+      cameraFlyAnim = null;
+    });
+
+    // Solar Directional Light + Subtle Earthshine Fill
+    const sunLight = new THREE.DirectionalLight(0xfff8ee, 2.95);
+    sunLight.position.set(16, 7, 16);
+    scene.add(sunLight);
+
+    const ambientLight = new THREE.AmbientLight(0x1b2840, 0.28);
+    scene.add(ambientLight);
+
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.22);
+    rimLight.position.set(-14, -5, -12);
+    scene.add(rimLight);
+
+    // Deep-Space Starfield
+    {
+      const starCount = 2800;
+      const starPositions = new Float32Array(starCount * 3);
+      const starColors = new Float32Array(starCount * 3);
+      let s = 519283;
+      const rand = () => {
+        s = (s * 1664525 + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+      for (let i = 0; i < starCount; i++) {
+        const u = rand() * 2 - 1;
+        const theta = rand() * Math.PI * 2;
+        const r = 75 + rand() * 65;
+        const sq = Math.sqrt(1 - u * u);
+        starPositions[i * 3] = r * sq * Math.cos(theta);
+        starPositions[i * 3 + 1] = r * u;
+        starPositions[i * 3 + 2] = r * sq * Math.sin(theta);
+
+        const tint = rand();
+        const b = 0.55 + rand() * 0.45;
+        starColors[i * 3] = b * (tint > 0.72 ? 1.0 : 0.88);
+        starColors[i * 3 + 1] = b * 0.93;
+        starColors[i * 3 + 2] = b * (tint < 0.4 ? 1.0 : 0.86);
+      }
+      const starGeo = new THREE.BufferGeometry();
+      starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+      starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+      scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({
+        size: 0.23,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.92,
+        sizeAttenuation: true
+      })));
+    }
+
+    // =========================================================================
+    // 4. PROCEDURAL SPHERICAL PBR EARTH PIPELINE (CONTINENTS, OCEANS & NIGHT LIGHTS)
+    // =========================================================================
+    const TEX_W = 1536;
+    const TEX_H = 768;
+    const noiseGen = new SphericalNoise3D(2026);
+
+    // Continental & Regional Elliptical Gaussian Primitives [lat, lon, rLat, rLon, weight]
+    const CONTINENT_BLOBS = [
+      // North America
+      [62, -148, 8, 16, 0.95], [58, -115, 13, 24, 1.15], [44, -102, 14, 22, 1.2],
+      [35, -88, 9, 13, 1.05], [22, -101, 7, 7, 0.88], [14, -87, 4, 5, 0.75],
+      // Greenland
+      [73, -42, 9, 16, 1.05],
+      // South America
+      [4, -68, 9, 11, 1.05], [-8, -55, 12, 16, 1.22], [-20, -56, 11, 11, 1.1],
+      [-36, -65, 11, 6, 0.95], [-48, -70, 7, 4, 0.82],
+      // Europe
+      [41, -4, 4.5, 6, 0.88], [48, 8, 7, 13, 1.05], [54, 24, 9, 16, 1.15],
+      [63, 16, 8, 9, 0.95], [42, 14, 4, 3, 0.78], [53, -2, 3.5, 3.5, 0.78],
+      // Africa (North Africa, Sahara, West, East Horn, Central & Southern Africa)
+      [27, 8, 11, 22, 1.22], [15, 18, 11, 24, 1.25], [8, 42, 6, 8, 0.92],
+      [-4, 23, 11, 12, 1.15], [-19, 25, 10, 10, 1.1], [-30, 24, 5.5, 6, 0.92],
+      [-19, 46, 5, 2.5, 0.82], // Madagascar
+      // Asia (Arabia, Anatolia, Siberia, Central Asia, India, China, SE Asia, Japan)
+      [24, 45, 8, 10, 1.05], [39, 35, 3.5, 7, 0.88], [62, 75, 11, 35, 1.25],
+      [63, 128, 10, 32, 1.18], [45, 85, 13, 28, 1.28], [34, 108, 12, 16, 1.22],
+      [20, 78, 9, 7, 1.05], [15, 102, 7, 6, 0.92], [36, 138, 4.5, 3, 0.78],
+      [-2, 114, 4.5, 6, 0.82], [-6, 141, 4, 7, 0.80],
+      // Australia & New Zealand
+      [-24, 134, 10, 16, 1.18], [-32, 146, 6, 7, 0.92], [-42, 172, 4.5, 3, 0.76]
+    ];
+
+    // Ocean Carves (Mediterranean Sea, Red Sea, Persian Gulf, Hudson Bay, Gulf of Mexico)
+    const SEA_CARVES = [
+      [36, 16, 4.2, 17, 0.85],  // Mediterranean Sea
+      [21, 38, 7.5, 2.3, 0.82], // Red Sea
+      [27, 51, 3.2, 4.2, 0.75], // Persian Gulf
+      [60, -83, 6.5, 8.5, 0.85],// Hudson Bay
+      [24, -90, 5.5, 7.5, 0.80],// Gulf of Mexico
+      [43, 34, 2.8, 5.5, 0.75]  // Black Sea
+    ];
+
+    // Major Mountain Belts [lat, lon, rLat, rLon, height]
+    const MOUNTAIN_RANGES = [
+      [31, 86, 6.5, 17, 0.42],   // Himalayas & Tibetan Plateau
+      [-18, -69, 18, 4.2, 0.34], // Andes Mountains
+      [46, -112, 15, 6.5, 0.26], // Rocky Mountains
+      [46, 10, 3.2, 6.5, 0.22],  // European Alps
+      [-3, 36, 9, 4.5, 0.20],    // East African Rift / Kilimanjaro
+      [32, -5, 3.0, 6.5, 0.16]   // Atlas Mountains
+    ];
+
+    // Major Urban Night-Light Clusters [lat, lon, radiusDeg, intensity]
+    const CITY_CLUSTERS = [
+      [30.0, 31.2, 3.2, 1.0],   // Cairo & Nile Delta
+      [25.5, 32.5, 2.5, 0.75],  // Upper Nile Valley
+      [51.5, -0.1, 4.5, 0.95],  // London & UK
+      [48.8, 2.3, 5.5, 0.95],   // Paris & Benelux
+      [51.2, 9.5, 6.5, 0.95],   // Germany / Central Europe
+      [45.4, 9.2, 4.5, 0.90],   // Northern Italy
+      [40.4, -3.7, 3.5, 0.80],  // Madrid / Iberia
+      [55.7, 37.6, 4.5, 0.85],  // Moscow
+      [25.2, 55.3, 3.2, 0.90],  // Dubai & Gulf Coast
+      [28.6, 77.2, 7.5, 1.0],   // Indo-Gangetic Plain / Delhi
+      [19.1, 72.8, 4.8, 0.85],  // Mumbai & Western India
+      [31.2, 121.5, 7.5, 1.0],  // Shanghai & East China
+      [39.9, 116.4, 6.5, 0.95], // Beijing & Bohai Rim
+      [23.1, 113.3, 4.8, 0.95], // Pearl River Delta / Hong Kong
+      [35.7, 139.7, 3.8, 1.0],  // Tokyo & Honshu
+      [37.5, 127.0, 2.8, 0.90], // Seoul
+      [40.7, -74.0, 7.5, 1.0],  // US Northeast Megalopolis
+      [41.8, -87.6, 6.5, 0.88], // Chicago / Midwest
+      [34.0, -118.2, 4.5, 0.92],// Los Angeles / California
+      [19.4, -99.1, 3.8, 0.82], // Mexico City
+      [-23.5, -46.6, 4.8, 0.88],// São Paulo & Rio de Janeiro
+      [-34.6, -58.4, 3.8, 0.80],// Buenos Aires
+      [-33.8, 151.2, 3.2, 0.78] // Sydney / Melbourne
+    ];
+
+    const heightData = new Float32Array(TEX_W * TEX_H);
+    const dispBytes = new Uint8Array(TEX_W * TEX_H * 4);
+    const normBytes = new Uint8Array(TEX_W * TEX_H * 4);
+    const albedoBytes = new Uint8Array(TEX_W * TEX_H * 4);
+    const roughBytes = new Uint8Array(TEX_W * TEX_H * 4);
+    const nightBytes = new Uint8Array(TEX_W * TEX_H * 4);
+
+    function evaluateEarthSample(lat, lon, nx, ny, nz) {
+      const coastNoise = noiseGen.fbm(nx * 4.8, ny * 4.8, nz * 4.8, 5) * 0.34
+                       + noiseGen.fbm(nx * 14.0, ny * 14.0, nz * 14.0, 3) * 0.12;
+
+      let landScore = -0.36 + coastNoise;
+
+      for (let i = 0; i < CONTINENT_BLOBS.length; i++) {
+        const [bLat, bLon, rLat, rLon, w] = CONTINENT_BLOBS[i];
+        const dLat = (lat - bLat) / rLat;
+        let dLonRaw = lon - bLon;
+        if (dLonRaw > 180) dLonRaw -= 360;
+        if (dLonRaw < -180) dLonRaw += 360;
+        const dLon = dLonRaw / rLon;
+        const d2 = dLat * dLat + dLon * dLon;
+        if (d2 < 3.2) {
+          landScore += w * Math.exp(-d2 * 1.35);
+        }
+      }
+
+      // Antarctica
+      if (lat < -66) {
+        landScore += THREE.MathUtils.smoothstep(-lat, 66, 75) * 1.15;
+      }
+
+      // Ensure all 8 Wonders sit solidly on land
+      for (let i = 0; i < WORLD_WONDERS.length; i++) {
+        const w = WORLD_WONDERS[i];
+        const dLat = (lat - w.lat) / 2.6;
+        let dLonRaw = lon - w.lon;
+        if (dLonRaw > 180) dLonRaw -= 360;
+        if (dLonRaw < -180) dLonRaw += 360;
+        const dLon = dLonRaw / 2.6;
+        const d2 = dLat * dLat + dLon * dLon;
+        if (d2 < 2.5) {
+          landScore += 0.55 * Math.exp(-d2 * 1.6);
+        }
+      }
+
+      // Carve inland seas
+      for (let i = 0; i < SEA_CARVES.length; i++) {
+        const [sLat, sLon, rLat, rLon, w] = SEA_CARVES[i];
+        const dLat = (lat - sLat) / rLat;
+        let dLonRaw = lon - sLon;
+        if (dLonRaw > 180) dLonRaw -= 360;
+        if (dLonRaw < -180) dLonRaw += 360;
+        const dLon = dLonRaw / rLon;
+        const d2 = dLat * dLat + dLon * dLon;
+        if (d2 < 2.6) {
+          landScore -= w * Math.exp(-d2 * 1.55);
+        }
+      }
+
+      const isLand = landScore > 0.0;
+      let elev01 = 0.35; // Sea level baseline
+
+      if (!isLand) {
+        const depth = Math.min(1.0, -landScore * 1.6);
+        elev01 = 0.34 - depth * 0.28 + noiseGen.fbm(nx * 6, ny * 6, nz * 6, 3) * 0.02;
+      } else {
+        const inland = Math.min(1.0, landScore * 1.4);
+        const ridge = noiseGen.ridged(nx * 8.5, ny * 8.5, nz * 8.5, 4);
+        elev01 = 0.37 + inland * 0.14 + ridge * 0.14;
+
+        for (let i = 0; i < MOUNTAIN_RANGES.length; i++) {
+          const [mLat, mLon, rLat, rLon, mh] = MOUNTAIN_RANGES[i];
+          const dLat = (lat - mLat) / rLat;
+          let dLonRaw = lon - mLon;
+          if (dLonRaw > 180) dLonRaw -= 360;
+          if (dLonRaw < -180) dLonRaw += 360;
+          const dLon = dLonRaw / rLon;
+          const d2 = dLat * dLat + dLon * dLon;
+          if (d2 < 2.8) {
+            elev01 += mh * Math.exp(-d2 * 1.45) * (0.55 + ridge * 0.75);
+          }
+        }
+      }
+
+      return {
+        isLand,
+        landScore,
+        elev01: Math.max(0.03, Math.min(0.99, elev01))
+      };
+    }
+
+    // Synthesize Height, Albedo, Roughness & Night City Lights
+    for (let y = 0; y < TEX_H; y++) {
+      const v = 1 - y / (TEX_H - 1);
+      const lat = v * 180 - 90;
+      const theta = (1 - v) * Math.PI;
+      const sinT = Math.sin(theta);
+      const ny = Math.cos(theta);
+
+      for (let x = 0; x < TEX_W; x++) {
+        const u = x / TEX_W;
+        const lon = u * 360 - 180;
+        const phi = u * Math.PI * 2;
+        const nx = -Math.cos(phi) * sinT;
+        const nz = Math.sin(phi) * sinT;
+
+        const { isLand, landScore, elev01 } = evaluateEarthSample(lat, lon, nx, ny, nz);
+        const pIdx = y * TEX_W + x;
+        heightData[pIdx] = elev01;
+
+        const bDisp = Math.round(elev01 * 255);
+        dispBytes[pIdx * 4] = bDisp;
+        dispBytes[pIdx * 4 + 1] = bDisp;
+        dispBytes[pIdx * 4 + 2] = bDisp;
+        dispBytes[pIdx * 4 + 3] = 255;
+
+        const biomeNoise = noiseGen.fbm(nx * 9.5 + 1.4, ny * 9.5 - 2.1, nz * 9.5, 4);
+        let r, g, b, rough;
+
+        // Polar Sea Ice & Antarctica
+        const arcticIce = lat > (76.5 + biomeNoise * 5.5);
+        const antarcticIce = lat < (-67.5 + biomeNoise * 3.5);
+
+        if (arcticIce || antarcticIce) {
+          r = 236 + biomeNoise * 14;
+          g = 243 + biomeNoise * 12;
+          b = 252;
+          rough = 0.44;
+        } else if (!isLand) {
+          // Ocean: turquoise shallow coastal shelf vs deep sapphire ocean
+          const shelf = Math.exp(landScore * 14.0);
+          r = THREE.MathUtils.lerp(11, 34, shelf) + biomeNoise * 8;
+          g = THREE.MathUtils.lerp(42, 138, shelf) + biomeNoise * 14;
+          b = THREE.MathUtils.lerp(108, 178, shelf) + biomeNoise * 16;
+          rough = 0.22; // Realistic ocean specular sun glint
+        } else {
+          // Land Biomes: Subtropical desert belt (Sahara, Arabia, Outback) vs Lush Forests vs Snow Peaks
+          const desertBelt = Math.exp(-Math.pow((Math.abs(lat) - 24) / 11.5, 2));
+          const dryness = THREE.MathUtils.clamp(desertBelt * 0.92 + biomeNoise * 0.48, 0, 1);
+
+          // Lush forest green
+          const fR = 44 + biomeNoise * 24;
+          const fG = 108 + biomeNoise * 32;
+          const fB = 48 + biomeNoise * 16;
+
+          // Golden Sahara / Arabian sand
+          const dR = 204 + biomeNoise * 24;
+          const dG = 166 + biomeNoise * 20;
+          const dB = 104 + biomeNoise * 16;
+
+          r = THREE.MathUtils.lerp(fR, dR, dryness);
+          g = THREE.MathUtils.lerp(fG, dG, dryness);
+          b = THREE.MathUtils.lerp(fB, dB, dryness);
+
+          // High mountain rock & snow caps
+          if (elev01 > 0.62) {
+            const rockT = THREE.MathUtils.smoothstep(elev01, 0.62, 0.74);
+            r = THREE.MathUtils.lerp(r, 128, rockT);
+            g = THREE.MathUtils.lerp(g, 118, rockT);
+            b = THREE.MathUtils.lerp(b, 110, rockT);
+          }
+          if (elev01 > 0.75) {
+            const snowT = THREE.MathUtils.smoothstep(elev01, 0.75, 0.85);
+            r = THREE.MathUtils.lerp(r, 245, snowT);
+            g = THREE.MathUtils.lerp(g, 248, snowT);
+            b = THREE.MathUtils.lerp(b, 255, snowT);
+          }
+          rough = 0.86;
+        }
+
+        const idx = pIdx * 4;
+        albedoBytes[idx] = Math.max(0, Math.min(255, Math.round(r)));
+        albedoBytes[idx + 1] = Math.max(0, Math.min(255, Math.round(g)));
+        albedoBytes[idx + 2] = Math.max(0, Math.min(255, Math.round(b)));
+        albedoBytes[idx + 3] = 255;
+
+        const rb = Math.round(rough * 255);
+        roughBytes[idx] = rb;
+        roughBytes[idx + 1] = rb;
+        roughBytes[idx + 2] = rb;
+        roughBytes[idx + 3] = 255;
+
+        // Night City Lights (Only on land)
+        let cityGlow = 0;
+        if (isLand && !arcticIce && !antarcticIce) {
+          const sparkle = Math.max(0, noiseGen.noise(nx * 68, ny * 68, nz * 68));
+          const roadWeb = 1.0 - Math.min(1.0, Math.abs(noiseGen.noise(nx * 28, ny * 28, nz * 28)) * 7.5);
+          for (let i = 0; i < CITY_CLUSTERS.length; i++) {
+            const [cLat, cLon, cRad, cInt] = CITY_CLUSTERS[i];
+            const dLat = (lat - cLat) / cRad;
+            let dLonRaw = lon - cLon;
+            if (dLonRaw > 180) dLonRaw -= 360;
+            if (dLonRaw < -180) dLonRaw += 360;
+            const dLon = dLonRaw / cRad;
+            const d2 = dLat * dLat + dLon * dLon;
+            if (d2 < 3.0) {
+              const falloff = Math.exp(-d2 * 1.8) * cInt;
+              cityGlow += falloff * (0.35 + sparkle * 0.95 + roadWeb * 0.45);
+            }
+          }
+        }
+        cityGlow = Math.min(1.0, cityGlow);
+        nightBytes[idx] = Math.round(cityGlow * 255);
+        nightBytes[idx + 1] = Math.round(cityGlow * 195);
+        nightBytes[idx + 2] = Math.round(cityGlow * 95);
+        nightBytes[idx + 3] = 255;
+      }
+    }
+
+    // Store sampled surface height for each of the 8 Wonders
+    WORLD_WONDERS.forEach(w => {
+      const u = (((w.lon + 180) % 360) + 360) % 360 / 360;
+      const v = (w.lat + 90) / 180;
+      const px = Math.min(TEX_W - 1, Math.max(0, Math.round(u * (TEX_W - 1))));
+      const py = Math.min(TEX_H - 1, Math.max(0, Math.round((1 - v) * (TEX_H - 1))));
+      w.surfaceHeight01 = heightData[py * TEX_W + px];
+    });
+
+    // Derive Tangent-Space Sobel Normal Map
+    const normalStrength = 4.2;
+    for (let y = 0; y < TEX_H; y++) {
+      const ym1 = Math.max(0, y - 1);
+      const yp1 = Math.min(TEX_H - 1, y + 1);
+      for (let x = 0; x < TEX_W; x++) {
+        const xm1 = (x - 1 + TEX_W) % TEX_W;
+        const xp1 = (x + 1) % TEX_W;
+
+        const tl = heightData[ym1 * TEX_W + xm1];
+        const tc = heightData[ym1 * TEX_W + x];
+        const tr = heightData[ym1 * TEX_W + xp1];
+        const ml = heightData[y * TEX_W + xm1];
+        const mr = heightData[y * TEX_W + xp1];
+        const bl = heightData[yp1 * TEX_W + xm1];
+        const bc = heightData[yp1 * TEX_W + x];
+        const br = heightData[yp1 * TEX_W + xp1];
+
+        const dX = (tr + 2 * mr + br) - (tl + 2 * ml + bl);
+        const dY = (bl + 2 * bc + br) - (tl + 2 * tc + tr);
+
+        let nx = -dX * normalStrength;
+        let ny = -dY * normalStrength;
+        let nz = 1.0;
+        const invLen = 1.0 / Math.hypot(nx, ny, nz);
+        nx *= invLen; ny *= invLen; nz *= invLen;
+
+        const idx = (y * TEX_W + x) * 4;
+        normBytes[idx] = Math.round((nx * 0.5 + 0.5) * 255);
+        normBytes[idx + 1] = Math.round((ny * 0.5 + 0.5) * 255);
+        normBytes[idx + 2] = Math.round((nz * 0.5 + 0.5) * 255);
+        normBytes[idx + 3] = 255;
+      }
+    }
+
+    const maxAniso = renderer.capabilities.getMaxAnisotropy();
+    function makeDataTex(bytes, isSRGB = false) {
+      const tex = new THREE.DataTexture(bytes, TEX_W, TEX_H, THREE.RGBAFormat);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.generateMipmaps = true;
+      tex.anisotropy = maxAniso;
+      if (isSRGB) tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    const albedoTexture = makeDataTex(albedoBytes, true);
+    const normalTexture = makeDataTex(normBytes, false);
+    const displacementTexture = makeDataTex(dispBytes, false);
+    const roughnessTexture = makeDataTex(roughBytes, false);
+    const nightLightsTexture = makeDataTex(nightBytes, true);
+
+    // =========================================================================
+    // 5. EARTH MESHES, DAY/NIGHT CITY LIGHTS SHADER, CLOUDS, ATMOSPHERE & MOON
+    // =========================================================================
+    const earthTiltGroup = new THREE.Group();
+    earthTiltGroup.rotation.z = THREE.MathUtils.degToRad(23.44);
+    scene.add(earthTiltGroup);
+
+    const earthSpinGroup = new THREE.Group();
+    earthTiltGroup.add(earthSpinGroup);
+
+    const earthGeo = new THREE.SphereGeometry(EARTH_RADIUS_3D, 256, 192);
+
+    const nightUniforms = {
+      uNightMap: { value: nightLightsTexture },
+      uSunDir: { value: new THREE.Vector3(1, 0.4, 1).normalize() },
+      uNightIntensity: { value: 1.25 }
+    };
+
+    // Mode 1: Rendered PBR Material with Day/Night City Lights Injection
+    const earthPBRMaterial = new THREE.MeshStandardMaterial({
+      map: albedoTexture,
+      normalMap: normalTexture,
+      normalScale: new THREE.Vector2(1.25, 1.25),
+      roughnessMap: roughnessTexture,
+      roughness: 1.0,
+      metalness: 0.04,
+      displacementMap: displacementTexture,
+      displacementScale: BASE_DISPLACEMENT_SCALE,
+      displacementBias: -BASE_DISPLACEMENT_SCALE * 0.36
+    });
+
+    earthPBRMaterial.onBeforeCompile = (shader) => {
+      shader.uniforms.uNightMap = nightUniforms.uNightMap;
+      shader.uniforms.uSunDir = nightUniforms.uSunDir;
+      shader.uniforms.uNightIntensity = nightUniforms.uNightIntensity;
+
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+           varying vec3 vWorldNormalCustom;`
+        )
+        .replace(
+          '#include <worldpos_vertex>',
+          `#include <worldpos_vertex>
+           vWorldNormalCustom = normalize(mat3(modelMatrix) * objectNormal);`
+        );
+
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+           uniform sampler2D uNightMap;
+           uniform vec3 uSunDir;
+           uniform float uNightIntensity;
+           varying vec3 vWorldNormalCustom;`
+        )
+        .replace(
+          '#include <dithering_fragment>',
+          `float sunDot = dot(normalize(vWorldNormalCustom), normalize(uSunDir));
+           float nightMask = smoothstep(0.14, -0.22, sunDot);
+           vec3 cityCol = texture2D(uNightMap, vMapUv).rgb * uNightIntensity * 1.65;
+           gl_FragColor.rgb += cityCol * nightMask;
+           #include <dithering_fragment>`
+        );
+    };
+
+    // Mode 2: Clay Sculpt MatCap Material
+    const earthClayMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uDisplacementMap: { value: displacementTexture },
+        uDisplacementScale: { value: BASE_DISPLACEMENT_SCALE },
+        uDisplacementBias: { value: -BASE_DISPLACEMENT_SCALE * 0.36 }
+      },
+      vertexShader: `
+        uniform sampler2D uDisplacementMap;
+        uniform float uDisplacementScale;
+        uniform float uDisplacementBias;
+        varying vec3 vViewPos;
+        void main() {
+          float disp = texture2D(uDisplacementMap, uv).r * uDisplacementScale + uDisplacementBias;
+          vec3 displaced = position + normal * disp;
+          vec4 mvPos = modelViewMatrix * vec4(displaced, 1.0);
+          vViewPos = -mvPos.xyz;
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vViewPos;
+        void main() {
+          vec3 n = normalize(cross(dFdx(vViewPos), dFdy(vViewPos)));
+          vec3 v = normalize(vViewPos);
+          float diff = max(dot(n, normalize(vec3(0.6, 0.75, 0.55))), 0.0);
+          float fresnel = pow(1.0 - max(dot(n, v), 0.0), 2.5) * 0.22;
+          vec3 col = mix(vec3(0.14, 0.17, 0.22), vec3(0.55, 0.62, 0.72), diff * 0.85 + 0.15) + vec3(0.75, 0.85, 0.98) * fresnel;
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+
+    // Mode 3: Wireframe Material
+    const earthWireMaterial = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.45
+    });
+
+    // Mode 4: Hypsometric & Bathymetric Elevation Shader
+    const earthElevationMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uDisplacementMap: { value: displacementTexture },
+        uDisplacementScale: { value: BASE_DISPLACEMENT_SCALE },
+        uDisplacementBias: { value: -BASE_DISPLACEMENT_SCALE * 0.36 }
+      },
+      vertexShader: `
+        uniform sampler2D uDisplacementMap;
+        uniform float uDisplacementScale;
+        uniform float uDisplacementBias;
+        varying float vElev;
+        void main() {
+          float h = texture2D(uDisplacementMap, uv).r;
+          vElev = h;
+          float disp = h * uDisplacementScale + uDisplacementBias;
+          vec3 displaced = position + normal * disp;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying float vElev;
+        vec3 hypsoRamp(float t) {
+          vec3 deepSea = vec3(0.04, 0.11, 0.34);
+          vec3 shallowSea = vec3(0.11, 0.44, 0.72);
+          vec3 lowland = vec3(0.18, 0.62, 0.36);
+          vec3 highland = vec3(0.85, 0.70, 0.29);
+          vec3 mountain = vec3(0.55, 0.35, 0.24);
+          vec3 peak = vec3(0.98, 0.99, 1.0);
+          if (t < 0.35) return mix(deepSea, shallowSea, t / 0.35);
+          if (t < 0.48) return mix(lowland, highland, (t - 0.35) / 0.13);
+          if (t < 0.68) return mix(highland, mountain, (t - 0.48) / 0.20);
+          return mix(mountain, peak, clamp((t - 0.68) / 0.22, 0.0, 1.0));
+        }
+        void main() {
+          float contour = smoothstep(0.46, 0.50, abs(fract(vElev * 30.0) - 0.5));
+          vec3 col = hypsoRamp(vElev) * mix(0.80, 1.04, contour);
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+
+    const earthMesh = new THREE.Mesh(earthGeo, earthPBRMaterial);
+    earthSpinGroup.add(earthMesh);
+
+    // Animated Swirling Cloud Layer
+    const cloudCanvas = document.createElement('canvas');
+    cloudCanvas.width = 768;
+    cloudCanvas.height = 384;
+    const cctx = cloudCanvas.getContext('2d');
+    const cimg = cctx.createImageData(768, 384);
+    for (let y = 0; y < 384; y++) {
+      const v = 1 - y / 383;
+      const theta = (1 - v) * Math.PI;
+      const sinT = Math.sin(theta);
+      const ny = Math.cos(theta);
+      for (let x = 0; x < 768; x++) {
+        const phi = (x / 768) * Math.PI * 2;
+        const nx = -Math.cos(phi) * sinT;
+        const nz = Math.sin(phi) * sinT;
+        const swirl = noiseGen.fbm(nx * 3.8 + 4.2, ny * 5.2, nz * 3.8 - 1.9, 5);
+        const wisp = noiseGen.fbm(nx * 11.0 - swirl * 1.8, ny * 14.0, nz * 11.0 + swirl * 1.8, 3);
+        const alpha = THREE.MathUtils.smoothstep(swirl * 0.7 + wisp * 0.3, 0.04, 0.42) * 235;
+        const idx = (y * 768 + x) * 4;
+        cimg.data[idx] = 255;
+        cimg.data[idx + 1] = 255;
+        cimg.data[idx + 2] = 255;
+        cimg.data[idx + 3] = Math.round(alpha);
+      }
+    }
+    cctx.putImageData(cimg, 0, 0);
+    const cloudTexture = new THREE.CanvasTexture(cloudCanvas);
+    cloudTexture.wrapS = THREE.RepeatWrapping;
+
+    const cloudMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(EARTH_RADIUS_3D * 1.022, 96, 64),
+      new THREE.MeshStandardMaterial({
+        map: cloudTexture,
+        transparent: true,
+        opacity: 0.58,
+        depthWrite: false,
+        roughness: 0.92
+      })
+    );
+    earthSpinGroup.add(cloudMesh);
+
+    // GLSL Rayleigh / Fresnel Blue Atmospheric Scattering Halo
+    const atmoMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uSunDir: { value: new THREE.Vector3(1, 0.4, 1).normalize() }
+      },
+      vertexShader: `
+        varying vec3 vWorldNormal;
+        varying vec3 vViewDir;
+        void main() {
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldNormal = normalize(mat3(modelMatrix) * normal);
+          vViewDir = normalize(cameraPosition - worldPos.xyz);
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uSunDir;
+        varying vec3 vWorldNormal;
+        varying vec3 vViewDir;
+        void main() {
+          float viewDot = dot(vWorldNormal, vViewDir);
+          float fresnel = pow(clamp(1.0 + viewDot, 0.0, 1.0), 3.3);
+          float sunDot = dot(-vWorldNormal, uSunDir);
+          float sunSide = smoothstep(-0.32, 0.65, sunDot);
+          float sunsetBand = exp(-pow((sunDot + 0.05) * 4.5, 2.0)) * 0.45;
+          vec3 dayBlue = vec3(0.24, 0.66, 1.0);
+          vec3 sunsetWarm = vec3(1.0, 0.48, 0.18);
+          vec3 col = mix(dayBlue, sunsetWarm, sunsetBand);
+          float alpha = fresnel * (0.12 + sunSide * 0.68);
+          gl_FragColor = vec4(col, alpha);
+        }
+      `,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      depthWrite: false
+    });
+
+    const atmoMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(EARTH_RADIUS_3D * 1.072, 96, 64),
+      atmoMaterial
+    );
+    earthTiltGroup.add(atmoMesh);
+
+    // Latitude / Longitude Coordinate Grid
+    const graticuleGroup = new THREE.Group();
+    graticuleGroup.visible = false;
+    earthSpinGroup.add(graticuleGroup);
+    {
+      const gridMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.25 });
+      const eqMat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.55 });
+      const rGrid = EARTH_RADIUS_3D * 1.028;
+
+      for (let lat = -75; lat <= 75; lat += 15) {
+        const pts = [];
+        const phiLat = THREE.MathUtils.degToRad(lat);
+        const y = Math.sin(phiLat) * rGrid;
+        const rRing = Math.cos(phiLat) * rGrid;
+        for (let i = 0; i <= 96; i++) {
+          const a = (i / 96) * Math.PI * 2;
+          pts.push(new THREE.Vector3(Math.cos(a) * rRing, y, Math.sin(a) * rRing));
+        }
+        graticuleGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lat === 0 ? eqMat : gridMat));
+      }
+
+      for (let lon = 0; lon < 180; lon += 15) {
+        const pts = [];
+        const thetaLon = THREE.MathUtils.degToRad(lon);
+        for (let i = 0; i <= 96; i++) {
+          const a = (i / 96) * Math.PI * 2;
+          pts.push(new THREE.Vector3(
+            Math.cos(a) * Math.cos(thetaLon) * rGrid,
+            Math.sin(a) * rGrid,
+            Math.cos(a) * Math.sin(thetaLon) * rGrid
+          ));
+        }
+        graticuleGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lon === 0 ? eqMat : gridMat));
+      }
+    }
+
+    // Orbiting Moon (Luna)
+    const moonGroup = new THREE.Group();
+    scene.add(moonGroup);
+    const MOON_ORBIT_R = 5.4;
+
+    const moonGeo = new THREE.SphereGeometry(0.28, 48, 36);
+    const moonPosAttr = moonGeo.attributes.position;
+    const moonColors = new Float32Array(moonPosAttr.count * 3);
+    const mv = new THREE.Vector3();
+    for (let i = 0; i < moonPosAttr.count; i++) {
+      mv.fromBufferAttribute(moonPosAttr, i).normalize();
+      const maria = THREE.MathUtils.smoothstep(noiseGen.fbm(mv.x * 2.2 + 5.1, mv.y * 2.2, mv.z * 2.2, 4), -0.15, 0.35);
+      const shade = THREE.MathUtils.lerp(0.46, 0.86, maria);
+      moonColors[i * 3] = shade;
+      moonColors[i * 3 + 1] = shade * 0.99;
+      moonColors[i * 3 + 2] = shade * 0.96;
+    }
+    moonGeo.setAttribute('color', new THREE.BufferAttribute(moonColors, 3));
+    const moonMesh = new THREE.Mesh(
+      moonGeo,
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02 })
+    );
+    moonGroup.add(moonMesh);
+
+    {
+      const pts = [];
+      for (let i = 0; i <= 128; i++) {
+        const a = (i / 128) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * MOON_ORBIT_R, 0, Math.sin(a) * MOON_ORBIT_R));
+      }
+      moonGroup.add(new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12 })
+      ));
+    }
+
+    // =========================================================================
+    // 6. GEODESIC SURFACE DISTANCE MEASUREMENT TOOL (KM)
+    // =========================================================================
+    const measureGroup = new THREE.Group();
+    earthSpinGroup.add(measureGroup);
+
+    const measureBadgeEl = document.getElementById('measure-badge');
+    const measureBadgeText = document.getElementById('measure-badge-text');
+    const btnClearMeasure = document.getElementById('btn-clear-measure');
+
+    let measureUnitPts = [];
+    let measureMidLocal = null;
+    let measureDistanceKm = 0;
+
+    function clearMeasurement() {
+      measureUnitPts = [];
+      measureMidLocal = null;
+      measureDistanceKm = 0;
+      while (measureGroup.children.length > 0) {
+        const child = measureGroup.children[0];
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+        measureGroup.remove(child);
+      }
+      measureBadgeEl.classList.add('hidden');
+      btnClearMeasure.classList.add('hidden');
+    }
+    btnClearMeasure.addEventListener('click', clearMeasurement);
+
+    function handleMeasureClick(localPt) {
+      if (measureUnitPts.length >= 2) clearMeasurement();
+      const unitDir = localPt.clone().normalize();
+      measureUnitPts.push(unitDir);
+
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.032, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+      );
+      marker.position.copy(unitDir).multiplyScalar(EARTH_RADIUS_3D * 1.025);
+      measureGroup.add(marker);
+      btnClearMeasure.classList.remove('hidden');
+
+      if (measureUnitPts.length === 2) {
+        const [p1, p2] = measureUnitPts;
+        measureDistanceKm = p1.angleTo(p2) * EARTH_REAL_RADIUS_KM;
+
+        const arcPts = [];
+        for (let i = 0; i <= 64; i++) {
+          const interp = new THREE.Vector3().lerpVectors(p1, p2, i / 64).normalize();
+          arcPts.push(interp.multiplyScalar(EARTH_RADIUS_3D * 1.028));
+        }
+        measureGroup.add(new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(arcPts),
+          new THREE.LineBasicMaterial({ color: 0x38bdf8 })
+        ));
+
+        measureMidLocal = new THREE.Vector3().addVectors(p1, p2).normalize().multiplyScalar(EARTH_RADIUS_3D * 1.04);
+        measureBadgeText.textContent = `${Math.round(measureDistanceKm).toLocaleString()} km`;
+        measureBadgeEl.classList.remove('hidden');
+        showToast(`Distance: ${Math.round(measureDistanceKm).toLocaleString()} km`);
+      }
+    }
+
+    const tempMeasureWorld = new THREE.Vector3();
+    function updateMeasureBadgeScreenPos() {
+      if (!measureMidLocal || measureUnitPts.length < 2) return;
+      tempMeasureWorld.copy(measureMidLocal);
+      earthSpinGroup.localToWorld(tempMeasureWorld);
+      tempMeasureWorld.project(camera);
+      if (tempMeasureWorld.z > 1.0) {
+        measureBadgeEl.classList.add('hidden');
+      } else {
+        measureBadgeEl.classList.remove('hidden');
+        measureBadgeEl.style.left = `${(tempMeasureWorld.x * 0.5 + 0.5) * window.innerWidth}px`;
+        measureBadgeEl.style.top = `${(-tempMeasureWorld.y * 0.5 + 0.5) * window.innerHeight}px`;
+      }
+    }
+
+    // =========================================================================
+    // 7. SEVEN WONDERS: KID ILLUSTRATIONS, REAL PHOTOS, BILINGUAL UI & STAMPS
+    // =========================================================================
+    const landmarksLayer = document.getElementById('landmarks-layer');
+    const outlinerListEl = document.getElementById('outliner-landmarks-list');
+    const pinElements = [];
+
+    let selectedWonderId = null;
+    let activeCategory = 'all';
+    let outlinerSearchQuery = '';
+    let pinsVisible = true;
+    let experienceMode = 'kid';
+    let activePictureTab = 'kid';
+    let lang = 'en'; // 'en' | 'ar'
+    const visitedWonderIds = new Set();
+    const solvedQuizIds = new Set();
+
+    function updatePassportUI() {
+      const count = visitedWonderIds.size;
+      const total = WORLD_WONDERS.length;
+      const pct = Math.round((count / total) * 100);
+      document.getElementById('passport-text').textContent = lang === 'ar'
+        ? `الأختام: ${count} / ${total}`
+        : `Stamps: ${count} / ${total}`;
+      document.getElementById('passport-progress-label').textContent = lang === 'ar'
+        ? `${count} / ${total} معالم`
+        : `${count} / ${total} Visited`;
+      document.getElementById('passport-progress-bar').style.width = `${pct}%`;
+
+      const badge = document.getElementById('passport-badge');
+      const icon = document.getElementById('passport-icon');
+      if (count === total) {
+        icon.textContent = '🏆';
+        badge.classList.add('border-emerald-400', 'bg-emerald-500/20');
+      } else {
+        icon.textContent = '🏅';
+      }
+    }
+
+    // Custom Kid-Friendly HTML5 Canvas Illustrations for all 8 Wonders
+    function drawWonderIllustration(wonderId) {
+      const c = document.getElementById('kid-illustration-canvas');
+      if (!c) return;
+      const ctx = c.getContext('2d');
+      const W = c.width;
+      const H = c.height;
+      ctx.clearRect(0, 0, W, H);
+
+      const drawSky = (top, mid, bot) => {
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, top);
+        g.addColorStop(0.55, mid);
+        g.addColorStop(1, bot);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+      };
+
+      const drawTag = (text, x, y, bg = 'rgba(12,16,24,0.86)', border = '#f59e0b', fg = '#fff') => {
+        ctx.save();
+        ctx.font = 'bold 14px Inter, Cairo, sans-serif';
+        const tw = ctx.measureText(text).width;
+        const pw = tw + 22;
+        const ph = 28;
+        ctx.fillStyle = bg;
+        ctx.strokeStyle = border;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(x - pw / 2, y - ph / 2, pw, ph, 14);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = fg;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x, y + 1);
+        ctx.restore();
+      };
+
+      if (wonderId === 'giza-pyramid') {
+        drawSky('#0c4a6e', '#0284c7', '#fde68a');
+        // Golden Egyptian Sun
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath();
+        ctx.arc(545, 72, 34, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Desert Dunes
+        ctx.fillStyle = '#eab308';
+        ctx.fillRect(0, 245, W, 95);
+        ctx.fillStyle = '#ca8a04';
+        ctx.beginPath();
+        ctx.moveTo(0, 265);
+        ctx.quadraticCurveTo(220, 232, 460, 268);
+        ctx.lineTo(680, 250);
+        ctx.lineTo(680, 340);
+        ctx.lineTo(0, 340);
+        ctx.closePath();
+        ctx.fill();
+
+        // Left: Menkaure & Khafre Pyramids
+        ctx.fillStyle = '#d97706';
+        ctx.beginPath(); ctx.moveTo(65, 252); ctx.lineTo(135, 165); ctx.lineTo(205, 252); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath(); ctx.moveTo(155, 255); ctx.lineTo(255, 118); ctx.lineTo(355, 255); ctx.closePath(); ctx.fill();
+
+        // Main Great Pyramid of Khufu with sunlit & shaded sides
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath(); ctx.moveTo(275, 262); ctx.lineTo(425, 72); ctx.lineTo(425, 262); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#b45309';
+        ctx.beginPath(); ctx.moveTo(425, 72); ctx.lineTo(575, 262); ctx.lineTo(425, 262); ctx.closePath(); ctx.fill();
+
+        // Great Sphinx silhouette on right
+        ctx.fillStyle = '#92400e';
+        ctx.beginPath();
+        ctx.roundRect(535, 245, 78, 28, 8);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(545, 236, 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        drawTag(lang === 'ar' ? 'الهرم الأكبر بالجيزة — مصر (138.5 م)' : 'Great Pyramid of Giza — Egypt (138.5 m)', 340, 32, 'rgba(20,16,10,0.88)', '#f59e0b', '#fef3c7');
+      } else if (wonderId === 'great-wall') {
+        drawSky('#0f172a', '#1e3a5f', '#6ee7b7');
+        // Misty emerald mountain ridges
+        ctx.fillStyle = '#065f46';
+        ctx.beginPath();
+        ctx.moveTo(0, 340); ctx.lineTo(0, 180); ctx.quadraticCurveTo(180, 95, 360, 175);
+        ctx.quadraticCurveTo(520, 85, 680, 155); ctx.lineTo(680, 340); ctx.closePath(); ctx.fill();
+
+        ctx.fillStyle = '#047857';
+        ctx.beginPath();
+        ctx.moveTo(0, 340); ctx.lineTo(0, 225); ctx.quadraticCurveTo(260, 145, 480, 220);
+        ctx.lineTo(680, 190); ctx.lineTo(680, 340); ctx.closePath(); ctx.fill();
+
+        // Winding Great Wall along ridge
+        ctx.strokeStyle = '#e7e5e4';
+        ctx.lineWidth = 18;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(40, 285);
+        ctx.bezierCurveTo(190, 165, 330, 245, 585, 128);
+        ctx.stroke();
+
+        // Watchtowers
+        [[145, 212], [355, 206], [565, 134]].forEach(([tx, ty]) => {
+          ctx.fillStyle = '#d6d3d1';
+          ctx.fillRect(tx - 16, ty - 22, 32, 26);
+          ctx.fillStyle = '#78716c';
+          ctx.fillRect(tx - 18, ty - 27, 36, 6);
+        });
+
+        drawTag(lang === 'ar' ? 'سور الصين العظيم (21,196 كم)' : 'Great Wall of China (21,196 km)', 340, 32, 'rgba(15,23,42,0.88)', '#ef4444', '#fee2e2');
+      } else if (wonderId === 'petra') {
+        drawSky('#451a03', '#9a3412', '#fdba74');
+        // Rose-red canyon cliffs
+        ctx.fillStyle = '#be123c';
+        ctx.fillRect(0, 60, W, 280);
+        // Carved Al-Khazneh Treasury facade
+        ctx.fillStyle = '#fda4af';
+        ctx.fillRect(215, 85, 250, 245);
+        // Columns & pediment
+        ctx.fillStyle = '#9f1239';
+        ctx.beginPath();
+        ctx.moveTo(205, 195); ctx.lineTo(340, 155); ctx.lineTo(475, 195); ctx.closePath(); ctx.fill();
+        [235, 280, 332, 385, 430].forEach(cx => {
+          ctx.fillStyle = '#ffe4e6';
+          ctx.fillRect(cx, 195, 14, 135);
+        });
+        // Dark Siq framing cliffs on left and right
+        ctx.fillStyle = '#4c0519';
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(175, 0); ctx.lineTo(135, 340); ctx.lineTo(0, 340); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(680, 0); ctx.lineTo(505, 0); ctx.lineTo(545, 340); ctx.lineTo(680, 340); ctx.closePath(); ctx.fill();
+
+        drawTag(lang === 'ar' ? 'البتراء — المدينة الوردية بالأردن' : 'Petra — The Rose-Red City, Jordan', 340, 32, 'rgba(30,10,18,0.9)', '#fb7185', '#ffe4e6');
+      } else if (wonderId === 'colosseum') {
+        drawSky('#1e3a8a', '#3b82f6', '#fde68a');
+        ctx.fillStyle = '#15803d';
+        ctx.fillRect(0, 268, W, 72);
+        // Colosseum Travertine Stone Oval
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.roundRect(120, 110, 440, 165, 18);
+        ctx.fill();
+        // Rows of Roman Arches
+        ctx.fillStyle = '#451a03';
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 11; col++) {
+            const ax = 142 + col * 37;
+            const ay = 132 + row * 44;
+            ctx.beginPath();
+            ctx.arc(ax + 11, ay + 12, 11, Math.PI, 0);
+            ctx.lineTo(ax + 22, ay + 32);
+            ctx.lineTo(ax, ay + 32);
+            ctx.closePath();
+            ctx.fill();
+          }
+        }
+        drawTag(lang === 'ar' ? 'الكولوسيوم — روما، إيطاليا (50,000 متفرج)' : 'The Colosseum — Rome, Italy (50,000 Seats)', 340, 32, 'rgba(24,18,12,0.9)', '#fb923c', '#ffedd5');
+      } else if (wonderId === 'chichen-itza') {
+        drawSky('#064e3b', '#059669', '#a7f3d0');
+        ctx.fillStyle = '#14532d';
+        ctx.fillRect(0, 265, W, 75);
+        // 9 Stepped Terraces of El Castillo
+        for (let step = 0; step < 9; step++) {
+          const sw = 390 - step * 32;
+          const sh = 18;
+          const sx = 340 - sw / 2;
+          const sy = 250 - step * sh;
+          ctx.fillStyle = step % 2 === 0 ? '#d6d3d1' : '#a8a29e';
+          ctx.fillRect(sx, sy, sw, sh);
+        }
+        // Top Temple
+        ctx.fillStyle = '#e7e5e4';
+        ctx.fillRect(295, 62, 90, 28);
+        // Central Stairway
+        ctx.fillStyle = '#78716c';
+        ctx.beginPath();
+        ctx.moveTo(318, 90); ctx.lineTo(362, 90); ctx.lineTo(385, 268); ctx.lineTo(295, 268); ctx.closePath(); ctx.fill();
+
+        drawTag(lang === 'ar' ? 'تشيتشن إيتزا — المكسيك (365 درجة)' : 'Chichén Itzá — Mexico (365 Calendar Steps)', 340, 32, 'rgba(10,28,20,0.9)', '#34d399', '#d1fae5');
+      } else if (wonderId === 'machu-picchu') {
+        drawSky('#0c4a6e', '#38bdf8', '#e0f2fe');
+        // Huayna Picchu dramatic peak in background
+        ctx.fillStyle = '#15803d';
+        ctx.beginPath();
+        ctx.moveTo(395, 265); ctx.lineTo(505, 68); ctx.lineTo(625, 265); ctx.closePath(); ctx.fill();
+        // Foreground ridge & Inca stone terraces
+        ctx.fillStyle = '#166534';
+        ctx.beginPath();
+        ctx.moveTo(0, 340); ctx.lineTo(0, 195); ctx.lineTo(365, 195); ctx.lineTo(485, 340); ctx.closePath(); ctx.fill();
+        // Stone temples
+        ctx.fillStyle = '#e7e5e4';
+        ctx.fillRect(110, 165, 62, 30);
+        ctx.fillRect(195, 172, 74, 24);
+        ctx.fillRect(285, 162, 54, 34);
+        // Fluffy Andes clouds
+        ctx.fillStyle = 'rgba(255,255,255,0.82)';
+        ctx.beginPath();
+        ctx.ellipse(125, 95, 68, 18, 0, 0, Math.PI * 2);
+        ctx.ellipse(575, 145, 74, 18, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        drawTag(lang === 'ar' ? 'ماتشو بيتشو — جبال الأنديز، بيرو (2,430 م)' : 'Machu Picchu — Andes Mountains, Peru (2,430 m)', 340, 32, 'rgba(12,28,22,0.9)', '#10b981', '#d1fae5');
+      } else if (wonderId === 'taj-mahal') {
+        drawSky('#1e1b4b', '#38bdf8', '#bae6fd');
+        // Green Gardens & Reflecting Pool
+        ctx.fillStyle = '#15803d';
+        ctx.fillRect(0, 245, W, 95);
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.moveTo(305, 245); ctx.lineTo(375, 245); ctx.lineTo(410, 340); ctx.lineTo(270, 340); ctx.closePath(); ctx.fill();
+
+        // White Marble Taj Mahal Platform & Main Structure
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(195, 228, 290, 18);
+        ctx.fillRect(255, 148, 170, 80);
+        // Central Onion Dome
+        ctx.beginPath();
+        ctx.arc(340, 132, 48, Math.PI, 0);
+        ctx.lineTo(388, 152);
+        ctx.lineTo(292, 152);
+        ctx.closePath();
+        ctx.fill();
+        // Central Archway
+        ctx.fillStyle = '#94a3b8';
+        ctx.beginPath();
+        ctx.arc(340, 192, 24, Math.PI, 0);
+        ctx.lineTo(364, 228); ctx.lineTo(316, 228); ctx.closePath(); ctx.fill();
+        // 4 Minarets
+        ctx.fillStyle = '#f1f5f9';
+        [208, 242, 438, 472].forEach(mx => {
+          ctx.fillRect(mx - 6, 118, 12, 110);
+        });
+
+        drawTag(lang === 'ar' ? 'تاج محل — أغرا، الهند (رخام أبيض)' : 'Taj Mahal — Agra, India (73 m Marble Dome)', 340, 32, 'rgba(14,24,38,0.9)', '#38bdf8', '#e0f2fe');
+      } else if (wonderId === 'christ-redeemer') {
+        drawSky('#0284c7', '#38bdf8', '#fef08a');
+        // Ocean & Sugarloaf Mountain in Rio Bay
+        ctx.fillStyle = '#0369a1';
+        ctx.fillRect(0, 235, W, 105);
+        ctx.fillStyle = '#15803d';
+        ctx.beginPath();
+        ctx.moveTo(430, 245); ctx.quadraticCurveTo(510, 145, 585, 245); ctx.closePath(); ctx.fill();
+
+        // Corcovado Mountain Peak
+        ctx.fillStyle = '#166534';
+        ctx.beginPath();
+        ctx.moveTo(85, 340); ctx.lineTo(215, 205); ctx.lineTo(345, 340); ctx.closePath(); ctx.fill();
+
+        // Pedestal & Christ the Redeemer Statue with Outstretched Arms
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(195, 178, 40, 30);
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(206, 98, 18, 80);
+        ctx.fillRect(156, 112, 118, 12); // Outstretched arms (28m)
+        ctx.beginPath();
+        ctx.arc(215, 88, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        drawTag(lang === 'ar' ? 'تمثال المسيح الفادي — ريو دي جانيرو، البرازيل' : 'Christ the Redeemer — Rio de Janeiro, Brazil', 340, 32, 'rgba(12,24,42,0.9)', '#60a5fa', '#dbeafe');
+      }
+    }
+
+    // Architectural Blueprint Fallback if Wikimedia Photo fails
+    function drawBlueprintFallback(wonder) {
+      const c = document.getElementById('kid-illustration-canvas');
+      if (!c) return;
+      const ctx = c.getContext('2d');
+      const W = c.width, H = c.height;
+      ctx.fillStyle = '#071022';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+      for (let x = 0; x < W; x += 34) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 34) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+      ctx.fillStyle = '#e0f2fe';
+      ctx.font = 'bold 17px Inter, Cairo, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`UNESCO HERITAGE BLUEPRINT: ${lang === 'ar' ? wonder.nameAr : wonder.nameEn}`, W / 2, H / 2 - 12);
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = '13px JetBrains Mono, monospace';
+      ctx.fillText(`${formatLatLon(wonder.lat, wonder.lon)}  |  ${lang === 'ar' ? wonder.builtAr : wonder.builtEn}`, W / 2, H / 2 + 16);
+    }
+
+    // Dual Picture Viewer Switcher
+    const picTabKid = document.getElementById('pic-tab-kid');
+    const picTabReal = document.getElementById('pic-tab-real');
+    const realPhotoWrapper = document.getElementById('real-photo-wrapper');
+    const realPhotoImg = document.getElementById('real-wonder-photo');
+    const realPhotoLoading = document.getElementById('real-photo-loading');
+
+    function setPictureTab(tab, wonder) {
+      activePictureTab = tab;
+      const isKid = tab === 'kid';
+      picTabKid.classList.toggle('bg-amber-500', isKid);
+      picTabKid.classList.toggle('text-white', isKid);
+      picTabKid.classList.toggle('text-neutral-300', !isKid);
+
+      picTabReal.classList.toggle('bg-sky-500', !isKid);
+      picTabReal.classList.toggle('text-white', !isKid);
+      picTabReal.classList.toggle('text-neutral-300', isKid);
+
+      if (!wonder) return;
+      if (isKid) {
+        realPhotoWrapper.classList.add('hidden');
+        drawWonderIllustration(wonder.id);
+      } else {
+        realPhotoWrapper.classList.remove('hidden');
+        realPhotoLoading.classList.remove('hidden');
+        document.getElementById('real-caption-text').textContent = `${wonder.nameEn} (${wonder.countryEn})`;
+        const wikiUrl = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(wonder.wikiFile)}?width=720`;
+        realPhotoImg.onload = () => realPhotoLoading.classList.add('hidden');
+        realPhotoImg.onerror = () => {
+          realPhotoWrapper.classList.add('hidden');
+          drawBlueprintFallback(wonder);
+        };
+        realPhotoImg.src = wikiUrl;
+      }
+    }
+
+    picTabKid.addEventListener('click', () => {
+      const w = WORLD_WONDERS.find(item => item.id === selectedWonderId);
+      if (w) setPictureTab('kid', w);
+    });
+    picTabReal.addEventListener('click', () => {
+      const w = WORLD_WONDERS.find(item => item.id === selectedWonderId);
+      if (w) setPictureTab('real', w);
+    });
+
+    // Read-Aloud Audio Narration
+    const btnListen = document.getElementById('btn-listen-audio');
+    const listenIcon = document.getElementById('listen-icon');
+    const listenLabel = document.getElementById('listen-label');
+    let isSpeaking = false;
+
+    function stopSpeech() {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      isSpeaking = false;
+      listenIcon.textContent = '🔊';
+      listenLabel.textContent = lang === 'ar' ? 'استمع' : 'Listen';
+    }
+
+    // Never let narration outlive the region/card it belongs to.
+    // Stop on tab switch, page navigation, or when the browser hides this page.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopSpeech();
+    });
+    window.addEventListener('pagehide', stopSpeech);
+    window.addEventListener('beforeunload', stopSpeech);
+    window.addEventListener('hashchange', stopSpeech);
+    window.addEventListener('popstate', stopSpeech);
+    window.addEventListener('blur', stopSpeech);
+
+    // The inspector is the region/card that owns this narration. Observe its
+    // visibility rather than relying only on specific close buttons: this also
+    // covers keyboard shortcuts, global-view controls, and future UI changes.
+    const speechRegion = document.getElementById('landmark-inspector');
+    if (speechRegion && typeof MutationObserver !== 'undefined') {
+      const speechRegionObserver = new MutationObserver(() => {
+        if (speechRegion.classList.contains('hidden')) stopSpeech();
+      });
+      speechRegionObserver.observe(speechRegion, { attributes: true, attributeFilter: ['class', 'hidden', 'style'] });
+    }
+
+    btnListen.addEventListener('click', () => {
+      if (!('speechSynthesis' in window)) {
+        showToast('Audio narration not supported in this browser.');
+        return;
+      }
+      if (isSpeaking) {
+        stopSpeech();
+        return;
+      }
+      const w = WORLD_WONDERS.find(item => item.id === selectedWonderId);
+      if (!w) return;
+      stopSpeech();
+      const script = lang === 'ar'
+        ? `${w.nameAr} في ${w.countryAr}. ${w.story1Ar} ${w.story2Ar} هل تعلم؟ ${w.funFactAr}`
+        : `${w.nameEn} in ${w.countryEn}. ${w.story1En} ${w.story2En} Did you know? ${w.funFactEn}`;
+      const utter = new SpeechSynthesisUtterance(script);
+      utter.lang = lang === 'ar' ? 'ar-EG' : 'en-US';
+      utter.rate = 0.96;
+      utter.onend = stopSpeech;
+      utter.onerror = stopSpeech;
+      isSpeaking = true;
+      listenIcon.textContent = '⏹';
+      listenLabel.textContent = lang === 'ar' ? 'إيقاف' : 'Stop';
+      window.speechSynthesis.speak(utter);
+    });
+
+    function initWonderPins() {
+      landmarksLayer.innerHTML = '';
+      pinElements.length = 0;
+
+      WORLD_WONDERS.forEach(w => {
+        const el = document.createElement('div');
+        el.className = 'landmark-pin flex items-center gap-1.5';
+        el.dataset.id = w.id;
+        el.innerHTML = `
+          <div class="relative flex items-center justify-center w-4 h-4">
+            <span class="pin-pulse absolute w-3.5 h-3.5 rounded-full" style="background:${w.color}"></span>
+            <span class="pin-core w-2.5 h-2.5 rounded-full border border-white shadow transition-transform" style="background:${w.color}"></span>
+          </div>
+          <div class="pin-card px-2 py-0.5 rounded-md bg-[#0f131d]/90 backdrop-blur-md border border-white/15 shadow-lg whitespace-nowrap transition-all">
+            <div class="pin-title text-[11px] font-semibold text-white leading-tight flex items-center gap-1">
+              <span>${w.emoji}</span>
+              <span>${lang === 'ar' ? w.nameAr : w.nameEn}</span>
+            </div>
+            <div class="pin-sub text-[9px] font-mono-tech text-neutral-400 leading-tight">${lang === 'ar' ? w.countryAr : w.countryEn}</div>
+          </div>
+        `;
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectWonder(w.id, true);
+        });
+        landmarksLayer.appendChild(el);
+        pinElements.push({ data: w, el });
+      });
+    }
+    initWonderPins();
+
+    function renderOutlinerList() {
+      const q = outlinerSearchQuery.trim().toLowerCase();
+      const filtered = WORLD_WONDERS.filter(w => {
+        const catMatch = activeCategory === 'all' || w.category === activeCategory;
+        const textMatch = !q ||
+          w.nameEn.toLowerCase().includes(q) ||
+          w.nameAr.includes(q) ||
+          w.countryEn.toLowerCase().includes(q) ||
+          w.countryAr.includes(q);
+        return catMatch && textMatch;
+      });
+
+      outlinerListEl.innerHTML = filtered.map(w => {
+        const isSel = w.id === selectedWonderId;
+        const isVisited = visitedWonderIds.has(w.id);
+        return `
+          <button data-wonder-id="${w.id}" class="outliner-item w-full px-2.5 py-2 rounded-lg flex items-center justify-between gap-2 text-left transition-all ${
+            isSel
+              ? 'bg-sky-500/25 border border-sky-400/60 text-white'
+              : 'bg-[#131720] hover:bg-white/5 border border-transparent text-neutral-200'
+          }">
+            <span class="flex items-center gap-2 min-w-0">
+              <span class="text-sm shrink-0">${w.emoji}</span>
+              <span class="min-w-0">
+                <div class="text-xs font-semibold truncate">${lang === 'ar' ? w.nameAr : w.nameEn}</div>
+                <div class="text-[10px] text-neutral-400 truncate">${lang === 'ar' ? w.countryAr : w.countryEn}</div>
+              </span>
+            </span>
+            <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+              isVisited
+                ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/50'
+                : 'bg-white/5 text-neutral-600 border border-white/10'
+            }">
+              ${isVisited ? '✓' : '·'}
+            </span>
+          </button>
+        `;
+      }).join('');
+
+      outlinerListEl.querySelectorAll('.outliner-item').forEach(btn => {
+        btn.addEventListener('click', () => selectWonder(btn.dataset.wonderId, true));
+      });
+    }
+    renderOutlinerList();
+
+    function syncSelectedPinHighlight() {
+      pinElements.forEach(({ data, el }) => {
+        const isSel = data.id === selectedWonderId;
+        el.classList.toggle('selected', isSel);
+        const card = el.querySelector('.pin-card');
+        const core = el.querySelector('.pin-core');
+        if (isSel) {
+          card.classList.add('border-amber-400', 'bg-[#1a1812]/95', 'ring-1', 'ring-amber-400/60');
+          core.style.transform = 'scale(1.35)';
+        } else {
+          card.classList.remove('border-amber-400', 'bg-[#1a1812]/95', 'ring-1', 'ring-amber-400/60');
+          core.style.transform = 'scale(1)';
+        }
+      });
+    }
+
+    const inspectorEl = document.getElementById('landmark-inspector');
+    function openWonderInspector(w) {
+      stopSpeech();
+      const wasNew = !visitedWonderIds.has(w.id);
+      visitedWonderIds.add(w.id);
+      updatePassportUI();
+      if (wasNew && visitedWonderIds.size === WORLD_WONDERS.length) {
+        showToast(lang === 'ar' ? '🏆 مبروك! جمعت أختام عجائب الدنيا السبع كاملة!' : '🏆 CONGRATS! All 8 World Wonder Stamps Collected!');
+      } else if (wasNew) {
+        showToast(lang === 'ar' ? `🏅 ختم جديد: ${w.nameAr} (${visitedWonderIds.size}/8)` : `🏅 Stamp Earned: ${w.nameEn} (${visitedWonderIds.size}/8)`);
+      }
+
+      const isAr = lang === 'ar';
+      document.getElementById('insp-accent-bar').style.background = w.color;
+      document.getElementById('insp-badge').textContent = `${w.emoji} ${isAr ? w.typeAr : w.typeEn}`;
+      document.getElementById('insp-index').textContent = isAr ? `معلم ${w.index + 1} من 8` : `Wonder ${w.index + 1} of 8`;
+      document.getElementById('insp-title').textContent = isAr ? w.nameAr : w.nameEn;
+      document.getElementById('insp-subtitle').textContent = isAr
+        ? `${w.countryAr} — ${w.nameEn}`
+        : `${w.countryEn} — ${w.nameAr}`;
+
+      const stampPill = document.getElementById('insp-stamp-pill');
+      stampPill.textContent = isAr ? '✓ تم الزيارة!' : '✓ Stamp!';
+      stampPill.classList.remove('stamp-pop');
+      void stampPill.offsetWidth;
+      stampPill.classList.add('stamp-pop');
+
+      setPictureTab(experienceMode === 'kid' ? 'kid' : 'real', w);
+
+      const storyContainer = document.getElementById('insp-story-container');
+      const factBox = document.getElementById('insp-fact-box');
+      const quizBox = document.getElementById('insp-quiz-box');
+      storyContainer.dir = isAr ? 'rtl' : 'ltr';
+      factBox.dir = isAr ? 'rtl' : 'ltr';
+      quizBox.dir = isAr ? 'rtl' : 'ltr';
+
+      document.getElementById('insp-kid-story-1').textContent = isAr ? w.story1Ar : w.story1En;
+      document.getElementById('insp-kid-story-2').textContent = isAr ? w.story2Ar : w.story2En;
+      document.getElementById('insp-scale-badge').textContent = isAr ? w.scaleBadgeAr : w.scaleBadgeEn;
+      document.getElementById('comp-ref-label').textContent = isAr ? w.compRefAr : w.compRefEn;
+      document.getElementById('comp-ref-val').textContent = `${w.compRefPct}%`;
+      document.getElementById('comp-ref-bar').style.width = `${w.compRefPct}%`;
+      document.getElementById('comp-wonder-label').textContent = isAr ? w.compWonderAr : w.compWonderEn;
+      document.getElementById('comp-wonder-val').textContent = `${w.compWonderPct}%`;
+      document.getElementById('comp-wonder-bar').style.width = `${w.compWonderPct}%`;
+      document.getElementById('insp-fun-fact').textContent = isAr ? w.funFactAr : w.funFactEn;
+
+      // Quiz
+      const qBadge = document.getElementById('quiz-status-badge');
+      const qFeedback = document.getElementById('quiz-feedback');
+      const qOptionsEl = document.getElementById('quiz-options');
+      const alreadySolved = solvedQuizIds.has(w.id);
+
+      qBadge.textContent = alreadySolved ? (isAr ? '⭐ أحسنت!' : '⭐ Solved!') : (isAr ? 'اختر الإجابة!' : 'Pick an answer!');
+      qFeedback.classList.add('hidden');
+      document.getElementById('quiz-question').textContent = isAr ? w.quiz.qAr : w.quiz.qEn;
+
+      const letters = isAr ? ['أ', 'ب', 'ج'] : ['A', 'B', 'C'];
+      const opts = isAr ? w.quiz.oAr : w.quiz.oEn;
+      qOptionsEl.innerHTML = opts.map((opt, idx) => `
+        <button data-opt-idx="${idx}" class="quiz-opt-btn w-full px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-indigo-500/25 border border-white/10 hover:border-indigo-400/50 text-start text-[11px] text-neutral-200 flex items-center gap-2 transition-all">
+          <span class="w-4 h-4 rounded bg-indigo-500/25 text-indigo-200 font-mono-tech font-bold text-[10px] flex items-center justify-center shrink-0">${letters[idx]}</span>
+          <span>${opt}</span>
+        </button>
+      `).join('');
+
+      qOptionsEl.querySelectorAll('.quiz-opt-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const chosen = parseInt(btn.dataset.optIdx, 10);
+          const isCorrect = chosen === 0; // First option in our data is always correct
+          qFeedback.classList.remove('hidden', 'bg-emerald-500/20', 'text-emerald-200', 'border-emerald-400/40', 'bg-amber-500/20', 'text-amber-200', 'border-amber-400/40');
+          qFeedback.classList.add('border');
+          if (isCorrect) {
+            solvedQuizIds.add(w.id);
+            qBadge.textContent = isAr ? '⭐ أحسنت!' : '⭐ Solved!';
+            btn.classList.add('bg-emerald-500/25', 'border-emerald-400/60', 'text-white');
+            qFeedback.classList.add('bg-emerald-500/20', 'text-emerald-200', 'border-emerald-400/40');
+            qFeedback.textContent = `🎉 ${isAr ? w.quiz.expAr : w.quiz.expEn}`;
+          } else {
+            btn.classList.add('bg-rose-500/20', 'border-rose-400/50');
+            qFeedback.classList.add('bg-amber-500/20', 'text-amber-200', 'border-amber-400/40');
+            qFeedback.textContent = isAr ? '🤔 حاول مرة أخرى بعد قراءة القصة أعلاه!' : '🤔 Not quite! Read the story above and try again!';
+          }
+        });
+      });
+
+      document.getElementById('insp-coords').textContent = formatLatLon(w.lat, w.lon);
+      document.getElementById('insp-built').textContent = isAr ? w.builtAr : w.builtEn;
+      document.getElementById('insp-country').textContent = isAr ? w.countryAr : w.countryEn;
+      document.getElementById('insp-size').textContent = isAr ? w.sizeAr : w.sizeEn;
+      document.getElementById('scientist-telemetry-details').open = (experienceMode === 'pro');
+      document.getElementById('insp-scroll-body').scrollTop = 0;
+
+      if (leftOutlinerOpen) toggleLeftOutliner(false, true);
+      inspectorEl.classList.remove('hidden');
+      syncPanelHeaderButtons();
+    }
+
+    function selectWonder(id, flyCamera = true) {
+      const w = WORLD_WONDERS.find(item => item.id === id);
+      if (!w) return;
+      if (selectedWonderId !== id) stopSpeech();
+      selectedWonderId = id;
+      openWonderInspector(w);
+      syncSelectedPinHighlight();
+      renderOutlinerList();
+
+      if (flyCamera) {
+        if (state.autoRotate) {
+          state.autoRotate = false;
+          updateRotateButtonUI();
+        }
+        earthSpinGroup.updateMatrixWorld(true);
+        const worldDir = w.unitPos.clone().applyMatrix4(earthSpinGroup.matrixWorld).normalize();
+        const endPos = worldDir.clone().multiplyScalar(w.camDist);
+
+        // Rotate Sun if Wonder is in night shadow so it's clearly illuminated
+        const currentSunDir = sunLight.position.clone().normalize();
+        if (currentSunDir.dot(worldDir) < 0.25) {
+          const dayDir = worldDir.clone()
+            .add(new THREE.Vector3(-worldDir.z, 0.35, worldDir.x).normalize().multiplyScalar(0.65))
+            .normalize();
+          state.sunElevation = Math.round(THREE.MathUtils.radToDeg(Math.asin(Math.max(-1, Math.min(1, dayDir.y)))));
+          state.sunAzimuth = Math.round(THREE.MathUtils.radToDeg(Math.atan2(dayDir.x, dayDir.z)));
+          document.getElementById('slider-sun-az').value = state.sunAzimuth;
+          document.getElementById('val-sun-az').textContent = `${state.sunAzimuth}°`;
+          document.getElementById('slider-sun-el').value = state.sunElevation;
+          document.getElementById('val-sun-el').textContent = `${state.sunElevation}°`;
+          updateSunPosition();
+        }
+
+        cameraFlyAnim = {
+          startPos: camera.position.clone(),
+          endPos,
+          startTarget: controls.target.clone(),
+          endTarget: new THREE.Vector3(0, 0, 0),
+          progress: 0
+        };
+      }
+    }
+
+    // Bilingual Language Switch (EN / عربي)
+    const langEnBtn = document.getElementById('lang-en-btn');
+    const langArBtn = document.getElementById('lang-ar-btn');
+
+    function setLanguage(newLang) {
+      if (lang !== newLang) stopSpeech();
+      lang = newLang;
+      const isAr = lang === 'ar';
+
+      langEnBtn.classList.toggle('bg-sky-500', !isAr);
+      langEnBtn.classList.toggle('text-white', !isAr);
+      langEnBtn.classList.toggle('text-neutral-300', isAr);
+
+      langArBtn.classList.toggle('bg-sky-500', isAr);
+      langArBtn.classList.toggle('text-white', isAr);
+      langArBtn.classList.toggle('text-neutral-300', !isAr);
+
+      document.getElementById('lbl-wonders-btn').textContent = isAr ? 'عجائب الدنيا (8)' : '7 Wonders (8)';
+      document.getElementById('lbl-controls-btn').textContent = isAr ? 'التحكم' : 'Controls';
+      document.getElementById('lbl-clean-btn').textContent = isAr ? 'عرض كامل' : 'Clean View';
+      document.getElementById('outliner-header-title').textContent = isAr ? 'عجائب الدنيا السبع' : 'Seven Wonders of the World';
+      document.getElementById('passport-footer-title').textContent = isAr ? 'جواز سفر المستكشف' : 'World Explorer Passport';
+      document.getElementById('btn-back-to-places').textContent = isAr ? '← العجائب' : '← Wonders';
+      document.getElementById('lbl-tab-kid').textContent = isAr ? 'رسمة للأطفال' : 'Kid Illustration';
+      document.getElementById('lbl-tab-real').textContent = isAr ? 'صورة حقيقية' : 'Real Photo';
+      document.getElementById('lbl-size-title').innerHTML = isAr ? '<span>📏</span><span>الحجم والعمر</span>' : '<span>📏</span><span>How Big &amp; Old Is It?</span>';
+      document.getElementById('lbl-fun-fact-title').innerHTML = isAr ? '<span>💡</span><span>هل تعلم؟ معلومة شيقة!</span>' : '<span>💡</span><span>Did You Know? Fun Fact!</span>';
+      document.getElementById('lbl-quiz-title').innerHTML = isAr ? '<span>🧠</span><span>اختبر معلوماتك!</span>' : '<span>🧠</span><span>World Explorer Mini Quiz</span>';
+      document.getElementById('btn-prev-landmark').textContent = isAr ? '→ السابق' : '← Previous';
+      document.getElementById('btn-next-landmark').textContent = isAr ? 'التالي ←' : 'Next Wonder →';
+
+      updatePassportUI();
+      initWonderPins();
+      syncSelectedPinHighlight();
+      renderOutlinerList();
+
+      const cur = WORLD_WONDERS.find(w => w.id === selectedWonderId);
+      if (cur && !inspectorEl.classList.contains('hidden')) {
+        openWonderInspector(cur);
+      }
+      showToast(isAr ? 'تم التبديل إلى اللغة العربية' : 'Language switched to English');
+    }
+
+    langEnBtn.addEventListener('click', () => setLanguage('en'));
+    langArBtn.addEventListener('click', () => setLanguage('ar'));
+
+    // Inspector Buttons
+    document.getElementById('btn-close-inspector').addEventListener('click', () => {
+      stopSpeech();
+      inspectorEl.classList.add('hidden');
+      selectedWonderId = null;
+      syncSelectedPinHighlight();
+      renderOutlinerList();
+      syncPanelHeaderButtons();
+    });
+
+    document.getElementById('btn-back-to-places').addEventListener('click', () => {
+      stopSpeech();
+      inspectorEl.classList.add('hidden');
+      selectedWonderId = null;
+      syncSelectedPinHighlight();
+      renderOutlinerList();
+      toggleLeftOutliner(true);
+    });
+
+    document.getElementById('btn-prev-landmark').addEventListener('click', () => {
+      const idx = WORLD_WONDERS.findIndex(w => w.id === selectedWonderId);
+      const prev = WORLD_WONDERS[(idx - 1 + WORLD_WONDERS.length) % WORLD_WONDERS.length];
+      selectWonder(prev.id, true);
+    });
+
+    document.getElementById('btn-next-landmark').addEventListener('click', () => {
+      const idx = WORLD_WONDERS.findIndex(w => w.id === selectedWonderId);
+      const next = WORLD_WONDERS[(idx + 1) % WORLD_WONDERS.length];
+      selectWonder(next.id, true);
+    });
+
+    document.getElementById('btn-global-view').addEventListener('click', () => {
+      stopSpeech();
+      cameraFlyAnim = {
+        startPos: camera.position.clone(),
+        endPos: new THREE.Vector3(2.4, 2.2, 5.4),
+        startTarget: controls.target.clone(),
+        endTarget: new THREE.Vector3(0, 0, 0),
+        progress: 0
+      };
+    });
+
+    // Category Filter Pills
+    document.querySelectorAll('.cat-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeCategory = btn.dataset.category;
+        document.querySelectorAll('.cat-pill').forEach(p => {
+          const active = p.dataset.category === activeCategory;
+          p.classList.toggle('border-sky-400', active);
+          p.classList.toggle('bg-sky-500/25', active);
+          p.classList.toggle('text-white', active);
+          p.classList.toggle('text-neutral-300', !active);
+        });
+        renderOutlinerList();
+      });
+    });
+
+    document.getElementById('outliner-search').addEventListener('input', (e) => {
+      outlinerSearchQuery = e.target.value;
+      renderOutlinerList();
+    });
+
+    // Kid Explorer vs Pro Studio Mode
+    const modeKidBtn = document.getElementById('mode-kid-btn');
+    const modeProBtn = document.getElementById('mode-pro-btn');
+
+    function setExperienceMode(mode) {
+      experienceMode = mode;
+      const isKid = mode === 'kid';
+      modeKidBtn.classList.toggle('bg-gradient-to-r', isKid);
+      modeKidBtn.classList.toggle('from-amber-500', isKid);
+      modeKidBtn.classList.toggle('to-orange-500', isKid);
+      modeKidBtn.classList.toggle('text-white', isKid);
+      modeKidBtn.classList.toggle('text-neutral-300', !isKid);
+
+      modeProBtn.classList.toggle('bg-sky-500', !isKid);
+      modeProBtn.classList.toggle('text-white', !isKid);
+      modeProBtn.classList.toggle('text-neutral-300', isKid);
+
+      const cur = WORLD_WONDERS.find(w => w.id === selectedWonderId);
+      if (cur) {
+        setPictureTab(isKid ? 'kid' : 'real', cur);
+        document.getElementById('scientist-telemetry-details').open = !isKid;
+      }
+      showToast(isKid ? '🌍 Kid Explorer Mode: Colorful Illustrations & Stories' : '🛰️ Pro Studio Mode: Real Photos & Coordinates');
+    }
+    modeKidBtn.addEventListener('click', () => setExperienceMode('kid'));
+    modeProBtn.addEventListener('click', () => setExperienceMode('pro'));
+
+    // Project 3D Wonder Pins onto Screen
+    const tempWorldPos = new THREE.Vector3();
+    const tempPlanetCenter = new THREE.Vector3();
+    const tempNormal = new THREE.Vector3();
+    const tempToCam = new THREE.Vector3();
+
+    function updateLandmarkPins() {
+      if (!pinsVisible) {
+        landmarksLayer.style.display = 'none';
+        return;
+      }
+      landmarksLayer.style.display = 'block';
+      earthSpinGroup.getWorldPosition(tempPlanetCenter);
+      const widthHalf = window.innerWidth * 0.5;
+      const heightHalf = window.innerHeight * 0.5;
+      const dispScale = state.reliefExaggeration * BASE_DISPLACEMENT_SCALE;
+      const dispBias = -dispScale * 0.36;
+
+      for (const item of pinElements) {
+        const w = item.data;
+        const catAllowed = activeCategory === 'all' || w.category === activeCategory || w.id === selectedWonderId;
+        if (!catAllowed) {
+          item.el.classList.add('occluded');
+          continue;
+        }
+        const surfaceR = EARTH_RADIUS_3D + w.surfaceHeight01 * dispScale + dispBias + 0.01;
+        tempWorldPos.copy(w.unitPos).multiplyScalar(surfaceR);
+        earthSpinGroup.localToWorld(tempWorldPos);
+
+        tempNormal.subVectors(tempWorldPos, tempPlanetCenter).normalize();
+        tempToCam.subVectors(camera.position, tempWorldPos).normalize();
+        const facing = tempNormal.dot(tempToCam);
+
+        if (facing < 0.14) {
+          item.el.classList.add('occluded');
+          continue;
+        }
+        tempWorldPos.project(camera);
+        if (tempWorldPos.z > 1.0) {
+          item.el.classList.add('occluded');
+          continue;
+        }
+        item.el.classList.remove('occluded');
+        item.el.style.opacity = Math.min(1, (facing - 0.14) * 4.5).toFixed(2);
+        item.el.style.left = `${(tempWorldPos.x * widthHalf) + widthHalf}px`;
+        item.el.style.top = `${-(tempWorldPos.y * heightHalf) + heightHalf}px`;
+      }
+    }
+
+    // =========================================================================
+    // 8. STUDIO CONTROLS, SHADING MODES, PANELS & GLB EXPORT
+    // =========================================================================
+    const motionPreference = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    const prefersReducedMotion = !!(motionPreference && motionPreference.matches);
+    const state = {
+      shadingMode: 'rendered',
+      toolMode: 'inspect',
+      autoRotate: !prefersReducedMotion,
+      rotSpeed: 0.35,
+      sunAzimuth: 38,
+      sunElevation: 16,
+      reliefExaggeration: 1.0,
+      axialTilt: 23.44,
+      fov: 42
+    };
+
+    function showToast(msg) {
+      const banner = document.getElementById('toast-banner');
+      document.getElementById('toast-message').textContent = msg;
+      banner.classList.remove('opacity-0', '-translate-y-2');
+      banner.classList.add('opacity-100', 'translate-y-0');
+      clearTimeout(showToast._timer);
+      showToast._timer = setTimeout(() => {
+        banner.classList.add('opacity-0', '-translate-y-2');
+        banner.classList.remove('opacity-100', 'translate-y-0');
+      }, 2500);
+    }
+
+    const btnToggleRotate = document.getElementById('btn-toggle-rotate');
+    function updateRotateButtonUI() {
+      btnToggleRotate.classList.toggle('bg-sky-500/25', state.autoRotate);
+      btnToggleRotate.classList.toggle('text-sky-200', state.autoRotate);
+      btnToggleRotate.classList.toggle('border-sky-400/50', state.autoRotate);
+      btnToggleRotate.classList.toggle('text-neutral-300', !state.autoRotate);
+      btnToggleRotate.setAttribute('aria-pressed', String(state.autoRotate));
+    }
+    updateRotateButtonUI();
+    if (motionPreference) {
+      const pauseForReducedMotion = event => {
+        if (event.matches && state.autoRotate) {
+          state.autoRotate = false;
+          updateRotateButtonUI();
+        }
+      };
+      if (motionPreference.addEventListener) motionPreference.addEventListener('change', pauseForReducedMotion);
+      else if (motionPreference.addListener) motionPreference.addListener(pauseForReducedMotion);
+    }
+    btnToggleRotate.addEventListener('click', () => {
+      state.autoRotate = !state.autoRotate;
+      updateRotateButtonUI();
+      showToast(state.autoRotate ? 'Earth Rotation: ON' : 'Earth Rotation: PAUSED');
+    });
+
+    function updateSunPosition() {
+      const az = THREE.MathUtils.degToRad(state.sunAzimuth);
+      const el = THREE.MathUtils.degToRad(state.sunElevation);
+      const dist = 25.0;
+      const x = dist * Math.cos(el) * Math.sin(az);
+      const y = dist * Math.sin(el);
+      const z = dist * Math.cos(el) * Math.cos(az);
+      sunLight.position.set(x, y, z);
+      const normSun = new THREE.Vector3(x, y, z).normalize();
+      atmoMaterial.uniforms.uSunDir.value.copy(normSun);
+      nightUniforms.uSunDir.value.copy(normSun);
+    }
+    updateSunPosition();
+
+    // Shading Mode Switcher
+    const molaLegend = document.getElementById('mola-legend');
+    function setShadingMode(mode) {
+      state.shadingMode = mode;
+      document.querySelectorAll('.shading-btn').forEach(btn => {
+        const isActive = btn.dataset.shading === mode;
+        btn.classList.toggle('bg-sky-500', isActive);
+        btn.classList.toggle('text-white', isActive);
+        btn.classList.toggle('shadow-sm', isActive);
+        btn.classList.toggle('text-neutral-300', !isActive);
+      });
+      molaLegend.classList.toggle('hidden', mode !== 'elevation');
+
+      if (mode === 'rendered') {
+        earthMesh.material = earthPBRMaterial;
+        cloudMesh.visible = document.getElementById('chk-clouds').checked;
+        atmoMesh.visible = document.getElementById('chk-atmosphere').checked;
+      } else if (mode === 'clay') {
+        earthMesh.material = earthClayMaterial;
+        cloudMesh.visible = false;
+        atmoMesh.visible = false;
+      } else if (mode === 'wireframe') {
+        earthMesh.material = earthWireMaterial;
+        cloudMesh.visible = false;
+        atmoMesh.visible = false;
+      } else if (mode === 'elevation') {
+        earthMesh.material = earthElevationMaterial;
+        cloudMesh.visible = false;
+        atmoMesh.visible = false;
+      }
+      showToast(`Viewport Shading: ${mode.toUpperCase()}`);
+    }
+    document.querySelectorAll('.shading-btn').forEach(btn => {
+      btn.addEventListener('click', () => setShadingMode(btn.dataset.shading));
+    });
+
+    // Measure Tool
+    const toolMeasureBtn = document.getElementById('tool-measure');
+    const statusToolHint = document.getElementById('status-tool-hint');
+    function setToolMode(mode) {
+      state.toolMode = mode;
+      const isMeasure = mode === 'measure';
+      toolMeasureBtn.classList.toggle('bg-cyan-600', isMeasure);
+      toolMeasureBtn.classList.toggle('text-white', isMeasure);
+      toolMeasureBtn.classList.toggle('text-neutral-300', !isMeasure);
+      canvas.style.cursor = isMeasure ? 'crosshair' : 'grab';
+      statusToolHint.textContent = isMeasure
+        ? 'Click two points on Earth to measure distance (km)'
+        : 'Click any glowing pin to explore the Seven Wonders!';
+    }
+    toolMeasureBtn.addEventListener('click', () => {
+      setToolMode(state.toolMode === 'measure' ? 'inspect' : 'measure');
+    });
+
+    // Grid Toggle
+    const btnToggleGrid = document.getElementById('btn-toggle-grid');
+    const chkGrid = document.getElementById('chk-grid');
+    function syncGridVisibility(visible) {
+      graticuleGroup.visible = visible;
+      chkGrid.checked = visible;
+      btnToggleGrid.classList.toggle('bg-amber-500/25', visible);
+      btnToggleGrid.classList.toggle('text-amber-200', visible);
+    }
+    btnToggleGrid.addEventListener('click', () => syncGridVisibility(!graticuleGroup.visible));
+
+    // Quick Camera View Presets
+    document.querySelectorAll('.cam-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const preset = btn.dataset.camPreset;
+        if (preset === 'moon') {
+          const mw = new THREE.Vector3();
+          moonMesh.getWorldPosition(mw);
+          cameraFlyAnim = {
+            startPos: camera.position.clone(),
+            endPos: mw.clone().add(new THREE.Vector3(0.7, 0.45, 0.9)),
+            startTarget: controls.target.clone(),
+            endTarget: mw,
+            progress: 0
+          };
+          showToast('Camera: The Moon (Luna)');
+          return;
+        }
+        let endPos = new THREE.Vector3(2.4, 2.2, 5.4);
+        earthSpinGroup.updateMatrixWorld(true);
+        if (preset === 'egypt') endPos = latLonToUnitVec(28, 32).applyMatrix4(earthSpinGroup.matrixWorld).normalize().multiplyScalar(4.1);
+        else if (preset === 'himalayas') endPos = latLonToUnitVec(30, 86).applyMatrix4(earthSpinGroup.matrixWorld).normalize().multiplyScalar(4.2);
+        else if (preset === 'americas') endPos = latLonToUnitVec(5, -75).applyMatrix4(earthSpinGroup.matrixWorld).normalize().multiplyScalar(5.5);
+        else if (preset === 'arctic') endPos = new THREE.Vector3(0.2, 5.5, 1.5);
+
+        cameraFlyAnim = {
+          startPos: camera.position.clone(),
+          endPos,
+          startTarget: controls.target.clone(),
+          endTarget: new THREE.Vector3(0, 0, 0),
+          progress: 0
+        };
+      });
+    });
+
+    // Raycasting for Cursor Lat/Lon & Measure Clicks
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const cursorTelemetryEl = document.getElementById('telemetry-cursor');
+    let pointerDownPos = { x: 0, y: 0 };
+
+    canvas.addEventListener('pointerdown', (e) => { pointerDownPos = { x: e.clientX, y: e.clientY }; });
+    canvas.addEventListener('pointermove', (e) => {
+      pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+      pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObject(earthMesh, false);
+      if (hits.length > 0) {
+        const localPt = earthSpinGroup.worldToLocal(hits[0].point.clone());
+        const { lat, lon } = unitVecToLatLon(localPt);
+        cursorTelemetryEl.textContent = formatLatLon(lat, lon);
+      } else {
+        cursorTelemetryEl.textContent = `Alt: ${Math.round((camera.position.length() / EARTH_RADIUS_3D - 1) * EARTH_REAL_RADIUS_KM).toLocaleString()} km`;
+      }
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+      if (Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y) > 5 || state.toolMode !== 'measure') return;
+      pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+      pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObject(earthMesh, false);
+      if (hits.length > 0) {
+        handleMeasureClick(earthSpinGroup.worldToLocal(hits[0].point.clone()));
+      }
+    });
+
+    // Bind All N-Panel Sliders & Checkboxes
+    function bindSlider(sliderId, valId, formatter, onChange) {
+      const slider = document.getElementById(sliderId);
+      const label = document.getElementById(valId);
+      slider.addEventListener('input', () => {
+        const num = parseFloat(slider.value);
+        label.textContent = formatter(num);
+        onChange(num);
+      });
+    }
+
+    bindSlider('slider-displacement', 'val-displacement', v => `${v.toFixed(2)}x`, v => {
+      state.reliefExaggeration = v;
+      const scale = v * BASE_DISPLACEMENT_SCALE;
+      const bias = -scale * 0.36;
+      earthPBRMaterial.displacementScale = scale;
+      earthPBRMaterial.displacementBias = bias;
+      earthClayMaterial.uniforms.uDisplacementScale.value = scale;
+      earthClayMaterial.uniforms.uDisplacementBias.value = bias;
+      earthElevationMaterial.uniforms.uDisplacementScale.value = scale;
+      earthElevationMaterial.uniforms.uDisplacementBias.value = bias;
+    });
+
+    bindSlider('slider-clouds', 'val-clouds', v => v.toFixed(2), v => {
+      cloudMesh.material.opacity = v;
+    });
+
+    bindSlider('slider-lights', 'val-lights', v => v.toFixed(2), v => {
+      nightUniforms.uNightIntensity.value = v;
+    });
+
+    bindSlider('slider-rot-speed', 'val-rot-speed', v => `${v.toFixed(2)}x`, v => {
+      state.rotSpeed = v;
+    });
+
+    bindSlider('slider-sun-az', 'val-sun-az', v => `${v}°`, v => {
+      state.sunAzimuth = v;
+      updateSunPosition();
+    });
+
+    bindSlider('slider-sun-el', 'val-sun-el', v => `${v}°`, v => {
+      state.sunElevation = v;
+      updateSunPosition();
+    });
+
+    bindSlider('slider-tilt', 'val-tilt', v => `${v.toFixed(2)}°`, v => {
+      state.axialTilt = v;
+      earthTiltGroup.rotation.z = THREE.MathUtils.degToRad(v);
+    });
+
+    bindSlider('slider-fov', 'val-fov', v => `${v}°`, v => {
+      state.fov = v;
+      camera.fov = v;
+      camera.updateProjectionMatrix();
+    });
+
+    document.getElementById('chk-atmosphere').addEventListener('change', (e) => {
+      atmoMesh.visible = e.target.checked && state.shadingMode === 'rendered';
+    });
+    document.getElementById('chk-clouds').addEventListener('change', (e) => {
+      cloudMesh.visible = e.target.checked && state.shadingMode === 'rendered';
+    });
+    document.getElementById('chk-moon').addEventListener('change', (e) => {
+      moonGroup.visible = e.target.checked;
+    });
+    chkGrid.addEventListener('change', (e) => syncGridVisibility(e.target.checked));
+    document.getElementById('chk-pins').addEventListener('change', (e) => {
+      pinsVisible = e.target.checked;
+    });
+
+    // Non-Overlapping Drawer Toggles & Dynamic Camera Viewport Framing
+    const leftOutliner = document.getElementById('left-outliner');
+    const nPanel = document.getElementById('n-panel');
+    const btnToggleOutliner = document.getElementById('btn-toggle-outliner');
+    const btnToggleNPanel = document.getElementById('btn-toggle-npanel');
+
+    let leftOutlinerOpen = false;
+    let nPanelOpen = false;
+    let currentViewOffsetX = 0;
+
+    function syncPanelHeaderButtons() {
+      const leftActive = leftOutlinerOpen || !inspectorEl.classList.contains('hidden');
+      btnToggleOutliner.classList.toggle('border-amber-400/60', leftActive);
+      btnToggleOutliner.classList.toggle('bg-amber-500/20', leftActive);
+      btnToggleOutliner.classList.toggle('text-white', leftActive);
+
+      btnToggleNPanel.classList.toggle('border-sky-400/70', nPanelOpen);
+      btnToggleNPanel.classList.toggle('bg-sky-500/20', nPanelOpen);
+      btnToggleNPanel.classList.toggle('text-white', nPanelOpen);
+
+      molaLegend.style.right = (nPanelOpen && window.innerWidth >= 768) ? '270px' : '10px';
+    }
+
+    function toggleLeftOutliner(forceState, skipInspectorClose = false) {
+      leftOutlinerOpen = typeof forceState === 'boolean' ? forceState : !leftOutlinerOpen;
+      leftOutliner.classList.toggle('-translate-x-[325px]', !leftOutlinerOpen);
+      if (leftOutlinerOpen && !skipInspectorClose && !inspectorEl.classList.contains('hidden')) {
+        stopSpeech();
+        inspectorEl.classList.add('hidden');
+        selectedWonderId = null;
+        syncSelectedPinHighlight();
+        renderOutlinerList();
+      }
+      syncPanelHeaderButtons();
+    }
+
+    function toggleNPanel(forceState) {
+      nPanelOpen = typeof forceState === 'boolean' ? forceState : !nPanelOpen;
+      nPanel.classList.toggle('translate-x-[290px]', !nPanelOpen);
+      syncPanelHeaderButtons();
+    }
+
+    function closeAllPanels() {
+      stopSpeech();
+      inspectorEl.classList.add('hidden');
+      selectedWonderId = null;
+      syncSelectedPinHighlight();
+      renderOutlinerList();
+      toggleLeftOutliner(false, true);
+      toggleNPanel(false);
+      showToast('Clean View: All panels tucked away');
+    }
+
+    function updateCameraViewportFraming(dt) {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      let leftBlocked = 0;
+      let rightBlocked = 0;
+
+      if (w >= 768) {
+        if (!inspectorEl.classList.contains('hidden')) leftBlocked = 378;
+        else if (leftOutlinerOpen) leftBlocked = 302;
+        if (nPanelOpen) rightBlocked = 268;
+      }
+
+      const targetOffsetX = -(leftBlocked - rightBlocked) * 0.5;
+      const blend = 1 - Math.exp(-dt * 10);
+      currentViewOffsetX += (targetOffsetX - currentViewOffsetX) * blend;
+
+      if (Math.abs(currentViewOffsetX) > 0.25) {
+        camera.setViewOffset(w, h, currentViewOffsetX, 0, w, h);
+      } else {
+        currentViewOffsetX = 0;
+        camera.clearViewOffset();
+      }
+    }
+
+    btnToggleOutliner.addEventListener('click', () => toggleLeftOutliner());
+    document.getElementById('btn-close-outliner').addEventListener('click', () => toggleLeftOutliner(false));
+    btnToggleNPanel.addEventListener('click', () => toggleNPanel());
+    document.getElementById('btn-close-npanel').addEventListener('click', () => toggleNPanel(false));
+    document.getElementById('btn-clear-view').addEventListener('click', closeAllPanels);
+    syncPanelHeaderButtons();
+
+    document.querySelectorAll('.accordion-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = document.getElementById(btn.dataset.target);
+        const chevron = btn.querySelector('svg:last-child');
+        const isHidden = target.classList.toggle('hidden');
+        chevron.style.transform = isHidden ? 'rotate(-90deg)' : 'rotate(0deg)';
+      });
+    });
+
+    document.getElementById('btn-reset-params').addEventListener('click', () => {
+      const defaults = {
+        'slider-displacement': 1.00,
+        'slider-clouds': 0.58,
+        'slider-lights': 1.25,
+        'slider-rot-speed': 0.35,
+        'slider-sun-az': 38,
+        'slider-sun-el': 16,
+        'slider-tilt': 23.44,
+        'slider-fov': 42
+      };
+      for (const [id, val] of Object.entries(defaults)) {
+        const el = document.getElementById(id);
+        el.value = val;
+        el.dispatchEvent(new Event('input'));
+      }
+      clearMeasurement();
+      setToolMode('inspect');
+      setShadingMode('rendered');
+      cameraFlyAnim = {
+        startPos: camera.position.clone(),
+        endPos: new THREE.Vector3(2.4, 2.2, 5.4),
+        startTarget: controls.target.clone(),
+        endTarget: new THREE.Vector3(0, 0, 0),
+        progress: 0
+      };
+      showToast('Scene reset to default Earth baseline');
+    });
+
+    // Export .GLB for Blender
+    document.getElementById('btn-export-glb').addEventListener('click', () => {
+      showToast('Exporting 3D Earth .GLB model for Blender...');
+      const prevMat = earthMesh.material;
+      earthMesh.material = earthPBRMaterial;
+      const exporter = new GLTFExporter();
+      exporter.parse(
+        earthTiltGroup,
+        (result) => {
+          earthMesh.material = prevMat;
+          const blob = new Blob([result], { type: 'application/octet-stream' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'earth_3d_studio.glb';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          showToast('Downloaded earth_3d_studio.glb');
+        },
+        (err) => {
+          earthMesh.material = prevMat;
+          console.error(err);
+          showToast('Export failed');
+        },
+        { binary: true }
+      );
+    });
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === '1') setShadingMode('rendered');
+      else if (e.key === '2') setShadingMode('clay');
+      else if (e.key === '3') setShadingMode('wireframe');
+      else if (e.key === '4') setShadingMode('elevation');
+      else if (e.key.toLowerCase() === 'm') setToolMode(state.toolMode === 'measure' ? 'inspect' : 'measure');
+      else if (e.key.toLowerCase() === 'g') syncGridVisibility(!graticuleGroup.visible);
+      else if (e.key.toLowerCase() === 'o') toggleLeftOutliner();
+      else if (e.key.toLowerCase() === 'n') toggleNPanel();
+      else if (e.key.toLowerCase() === 'h') closeAllPanels();
+      else if (e.key === 'Escape') {
+        stopSpeech();
+        inspectorEl.classList.add('hidden');
+        selectedWonderId = null;
+        syncSelectedPinHighlight();
+        renderOutlinerList();
+        syncPanelHeaderButtons();
+      } else if (e.code === 'Space') {
+        e.preventDefault();
+        state.autoRotate = !state.autoRotate;
+        updateRotateButtonUI();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      syncPanelHeaderButtons();
+    });
+
+    // =========================================================================
+    // 9. MAIN ANIMATION LOOP
+    // =========================================================================
+    const clock = new THREE.Clock();
+    let moonAngle = 0.8;
+    if (prefersReducedMotion) {
+      moonMesh.position.set(Math.cos(moonAngle) * MOON_ORBIT_R, Math.sin(moonAngle * 0.5) * 0.25, Math.sin(moonAngle) * MOON_ORBIT_R);
+    }
+    let frameCount = 0;
+    let lastFpsTime = performance.now();
+    const fpsEl = document.getElementById('telemetry-fps');
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      updateCameraViewportFraming(dt);
+
+      if (state.autoRotate) {
+        earthSpinGroup.rotation.y += dt * 0.14 * state.rotSpeed;
+        cloudMesh.rotation.y += dt * 0.04 * state.rotSpeed;
+      }
+
+      if (!(motionPreference && motionPreference.matches)) {
+        moonAngle += dt * 0.22;
+        moonMesh.position.set(
+          Math.cos(moonAngle) * MOON_ORBIT_R,
+          Math.sin(moonAngle * 0.5) * 0.25,
+          Math.sin(moonAngle) * MOON_ORBIT_R
+        );
+      }
+      moonMesh.rotation.y = -moonAngle;
+
+      if (cameraFlyAnim) {
+        cameraFlyAnim.progress += dt * 1.45;
+        const t = Math.min(1, cameraFlyAnim.progress);
+        const ease = 1 - Math.pow(1 - t, 3);
+        camera.position.lerpVectors(cameraFlyAnim.startPos, cameraFlyAnim.endPos, ease);
+        controls.target.lerpVectors(cameraFlyAnim.startTarget, cameraFlyAnim.endTarget, ease);
+        if (t >= 1) cameraFlyAnim = null;
+      }
+
+      controls.update();
+      updateLandmarkPins();
+      updateMeasureBadgeScreenPos();
+      renderer.render(scene, camera);
+
+      frameCount++;
+      const now = performance.now();
+      if (now - lastFpsTime >= 500) {
+        fpsEl.textContent = `${Math.round((frameCount * 1000) / (now - lastFpsTime))} FPS`;
+        frameCount = 0;
+        lastFpsTime = now;
+      }
+    }
+
+    window.addEventListener('load', () => {
+      const loader = document.getElementById('loader-overlay');
+      setTimeout(() => {
+        loader.classList.add('opacity-0', 'pointer-events-none');
+      }, 220);
+      animate();
+    });
+  </script>
+</body>
+</html>

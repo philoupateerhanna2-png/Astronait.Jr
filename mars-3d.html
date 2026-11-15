@@ -1,0 +1,3972 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Mars Studio 3D — Blender-Grade Planetary Viewport</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Three.js ES Module Import Map -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --bg-viewport: #090a0f;
+      --bg-panel: rgba(27, 28, 32, 0.92);
+      --bg-section: rgba(38, 40, 46, 0.85);
+      --bg-input: #16171a;
+      --border-subtle: rgba(255, 255, 255, 0.09);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --accent-blender: #e87d0d;
+      --accent-blender-hover: #ff9224;
+      --accent-blue: #4772b3;
+      --text-primary: #eceef2;
+      --text-secondary: #9aa0ac;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-viewport);
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .font-mono-tech {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Blender-style Custom Range Sliders */
+    input[type="range"].blender-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 20px;
+      background: #18191c;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      outline: none;
+      cursor: ew-resize;
+      overflow: hidden;
+    }
+
+    input[type="range"].blender-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 10px;
+      height: 20px;
+      background: var(--accent-blender);
+      border-radius: 2px;
+      box-shadow: -400px 0 0 396px rgba(232, 125, 13, 0.32);
+      cursor: ew-resize;
+      transition: background 0.15s ease;
+    }
+
+    input[type="range"].blender-slider:hover::-webkit-slider-thumb {
+      background: var(--accent-blender-hover);
+    }
+
+    input[type="range"].blender-slider::-moz-range-thumb {
+      width: 10px;
+      height: 20px;
+      background: var(--accent-blender);
+      border: none;
+      border-radius: 2px;
+      box-shadow: -400px 0 0 396px rgba(232, 125, 13, 0.32);
+      cursor: ew-resize;
+    }
+
+    /* Custom Scrollbar for N-Panel */
+    .n-panel-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+    .n-panel-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .n-panel-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 999px;
+    }
+    .n-panel-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    /* 3D Floating Landmark Pins */
+    .landmark-pin {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      pointer-events: auto;
+      cursor: pointer;
+      transition: opacity 0.2s ease, transform 0.15s ease;
+      z-index: 15;
+    }
+    .landmark-pin:hover {
+      transform: translate(-50%, -50%) scale(1.06);
+      z-index: 25;
+    }
+    .landmark-pin.selected {
+      z-index: 28;
+    }
+    .landmark-pin.occluded {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Subtle pulse ring on landmark dot */
+    @keyframes pulseRing {
+      0% { transform: scale(0.85); opacity: 0.85; }
+      70% { transform: scale(2.0); opacity: 0; }
+      100% { transform: scale(2.0); opacity: 0; }
+    }
+    .pin-pulse {
+      animation: pulseRing 2.5s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    }
+
+    /* Glassmorphic Blender Panels */
+    .blender-surface {
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+    }
+
+    /* Custom Scrollbar for Inspector & Outliner */
+    .thin-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .thin-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .thin-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+    }
+
+    @keyframes stampPop {
+      0% { transform: scale(0.5) rotate(-14deg); opacity: 0; }
+      70% { transform: scale(1.12) rotate(3deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    .stamp-pop {
+      animation: stampPop 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    @keyframes speakWave {
+      0%, 100% { transform: scaleY(0.45); }
+      50% { transform: scaleY(1.0); }
+    }
+    .speaking-bar {
+      animation: speakWave 0.65s ease-in-out infinite;
+    }
+  </style>
+  <style>
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
+
+  <!-- Astronaut Jr navigation layer; the original Mars model styles and logic remain unchanged. -->
+  <style>
+    .astronaut-jr-mars-back {
+      position: fixed;
+      top: max(14px, env(safe-area-inset-top));
+      left: max(14px, env(safe-area-inset-left));
+      z-index: 99999;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 15px;
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 12px;
+      color: #eef2f7;
+      background: rgba(9, 15, 28, .88);
+      box-shadow: 0 8px 28px rgba(0,0,0,.35);
+      font: 600 14px/1.2 Inter, sans-serif;
+      text-decoration: none;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .astronaut-jr-mars-back:hover { background: rgba(220, 90, 48, .95); }
+  </style>
+</head>
+<body>
+  <a class="astronaut-jr-mars-back" href="index.html" onclick="if (history.length > 1) { event.preventDefault(); history.back(); }" aria-label="Back to Mars Page">
+    <span aria-hidden="true">←</span> Back to Mars Page
+  </a>
+
+
+  <!-- Full-Screen 3D WebGL Viewport Container -->
+  <div id="viewport-container" class="relative w-screen h-screen overflow-hidden bg-[#06070b]">
+    <canvas id="mars-canvas" class="block w-full h-full outline-none"></canvas>
+
+    <!-- 3D Projected Landmark HUD Layer -->
+    <div id="landmarks-layer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+
+    <!-- Geodesic Distance Measurement Floating Badge -->
+    <div id="measure-badge" class="hidden fixed z-30 pointer-events-none -translate-x-1/2 -translate-y-full pb-2">
+      <div class="px-2.5 py-1 rounded-md bg-[#111318]/90 backdrop-blur-md border border-cyan-400/60 shadow-lg text-[11px] font-mono-tech text-cyan-200 whitespace-nowrap flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+        <span id="measure-badge-text">0 km</span>
+      </div>
+    </div>
+
+    <!-- Initial Procedural Generation Loading Overlay -->
+    <div id="loader-overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#090a0f]/95 backdrop-blur-md transition-opacity duration-500">
+      <div class="w-12 h-12 rounded-xl bg-[#e87d0d]/15 border border-[#e87d0d]/50 flex items-center justify-center mb-4 shadow-lg shadow-[#e87d0d]/10">
+        <svg class="w-6 h-6 text-[#e87d0d] animate-spin" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+          <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z"></path>
+        </svg>
+      </div>
+      <div class="text-sm font-semibold tracking-wide text-white mb-1">SYNTHESIZING 2K MARTIAN TOPOGRAPHY</div>
+      <div id="loader-status" class="text-xs font-mono-tech text-neutral-400">Generating 2048×1024 Spherical fBm PBR Maps &amp; 256×192 Mesh...</div>
+    </div>
+
+    <!-- Toast Notification Banner (Replaces alert()) -->
+    <div id="toast-banner" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 -translate-y-2">
+      <div class="px-3.5 py-1.5 rounded-lg blender-surface border border-[#e87d0d]/50 shadow-xl flex items-center gap-2 text-xs font-medium text-white">
+        <span class="w-2 h-2 rounded-full bg-[#e87d0d]"></span>
+        <span id="toast-message">Status ready</span>
+      </div>
+    </div>
+
+    <!-- TOP VIEWPORT HEADER BAR (Blender Header Style) -->
+    <header class="absolute top-2.5 left-2.5 right-2.5 z-30 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      <!-- Left: Studio Identity, Shading Mode Switcher & Explorer Mode -->
+      <div class="flex items-center gap-1.5 pointer-events-auto flex-wrap">
+        <!-- App Title Pill -->
+        <div class="blender-surface rounded-lg px-2.5 py-1.5 flex items-center gap-2 shadow-lg">
+          <div class="w-5 h-5 rounded bg-[#e87d0d] flex items-center justify-center text-[#111] font-bold text-xs shadow-inner">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M12 3a14.5 14.5 0 0 0 0 18 14.5 14.5 0 0 0 0-18"/>
+              <path d="M3 12h18"/>
+            </svg>
+          </div>
+          <span class="text-xs font-semibold tracking-wide text-neutral-100">MARS STUDIO</span>
+          <span class="hidden sm:inline-block text-[10px] font-mono-tech px-1.5 py-0.5 rounded bg-white/5 text-neutral-400 border border-white/5">2K PBR</span>
+        </div>
+
+        <!-- Kid Explorer vs Pro Studio Mode Toggle Pill -->
+        <div class="blender-surface rounded-lg p-1 flex items-center gap-1 shadow-lg" role="group" aria-label="Experience Mode">
+          <button id="mode-kid-btn" class="px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm transition-all" title="Kid-Friendly Illustrations, Stories & Quizzes">
+            <span>🚀</span>
+            <span>Kid Explorer</span>
+          </button>
+          <button id="mode-pro-btn" class="px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 text-neutral-300 hover:text-white hover:bg-white/5 transition-all" title="NASA Imagery & Pro Planetary Telemetry">
+            <span>🛰️</span>
+            <span class="hidden sm:inline">Pro Studio</span>
+          </button>
+        </div>
+
+        <!-- Explorer Passport Stamps Counter Badge -->
+        <div id="passport-badge" class="blender-surface rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 shadow-lg border border-amber-400/30 transition-all" title="Visit all 12 famous places on Mars to complete your Explorer Passport!">
+          <span id="passport-icon" class="text-sm">🏅</span>
+          <span id="passport-text" class="text-xs font-mono-tech font-semibold text-amber-300">Stamps: 0 / 12</span>
+        </div>
+
+        <!-- Blender Viewport Shading Mode Switcher -->
+        <div class="blender-surface rounded-lg p-1 flex items-center gap-1 shadow-lg" role="group" aria-label="Viewport Shading">
+          <button data-shading="rendered" class="shading-btn active px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all bg-[#e87d0d] text-white shadow-sm" title="Rendered PBR Shading (Key: 1)">
+            <span class="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-amber-800 via-orange-400 to-amber-100 border border-white/40"></span>
+            <span class="hidden xl:inline">Rendered</span>
+          </button>
+          <button data-shading="clay" class="shading-btn px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 text-neutral-300 hover:text-white hover:bg-white/5 transition-all" title="Clay Sculpt MatCap (Key: 2)">
+            <span class="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-[#5d2619] via-[#b85a43] to-[#f2a896]"></span>
+            <span class="hidden xl:inline">Clay</span>
+          </button>
+          <button data-shading="wireframe" class="shading-btn px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 text-neutral-300 hover:text-white hover:bg-white/5 transition-all" title="Mesh Topology Wireframe (Key: 3)">
+            <svg class="w-3.5 h-3.5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9"/>
+              <ellipse cx="12" cy="12" rx="4.5" ry="9"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+            </svg>
+            <span class="hidden xl:inline">Wire</span>
+          </button>
+          <button data-shading="elevation" class="shading-btn px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 text-neutral-300 hover:text-white hover:bg-white/5 transition-all" title="NASA MOLA Hypsometric Elevation Map (Key: 4)">
+            <span class="w-2.5 h-2.5 rounded-full bg-gradient-to-t from-blue-600 via-emerald-400 to-red-500"></span>
+            <span class="hidden xl:inline">Elevation</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Right: Quick Tools, GLB Export & Panel Toggles -->
+      <div class="flex items-center gap-1.5 pointer-events-auto">
+        <div class="blender-surface rounded-lg p-1 flex items-center gap-1 shadow-lg">
+          <button id="btn-toggle-rotate" aria-pressed="true" class="px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 bg-[#4772b3]/30 text-blue-200 border border-[#4772b3]/50 hover:bg-[#4772b3]/45 transition-all" title="Toggle Planetary Auto-Spin (Space)">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            </svg>
+            <span class="hidden md:inline">Auto-Spin</span>
+          </button>
+
+          <button id="tool-measure" class="tool-btn px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 text-neutral-300 hover:text-white hover:bg-white/5 transition-all" title="Measure Geodesic Surface Distance in km (Key: M)">
+            <svg class="w-3.5 h-3.5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/>
+              <path d="m14.5 12.5 2-2"/>
+              <path d="m11.5 9.5 2-2"/>
+              <path d="m8.5 6.5 2-2"/>
+            </svg>
+            <span class="hidden lg:inline">Measure (km)</span>
+          </button>
+
+          <button id="btn-clear-measure" class="hidden px-2 py-1 rounded-md text-[11px] font-medium text-rose-300 hover:text-white hover:bg-rose-500/25 transition-all" title="Clear Measurement Points">
+            Clear
+          </button>
+
+          <button id="btn-toggle-grid" class="px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 text-neutral-300 hover:text-white hover:bg-white/5 transition-all" title="Toggle Latitude / Longitude Grid (Key: G)">
+            <svg class="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            <span class="hidden lg:inline">Grid</span>
+          </button>
+
+          <button id="btn-export-glb" class="px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 bg-emerald-600/25 text-emerald-200 border border-emerald-500/40 hover:bg-emerald-600/40 transition-all" title="Export 3D Model (.GLB) for Blender">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span class="hidden sm:inline">Export .GLB</span>
+          </button>
+        </div>
+
+        <!-- Left Outliner Toggle Button -->
+        <button id="btn-toggle-outliner" class="blender-surface rounded-lg px-2.5 py-1.5 text-xs font-semibold text-neutral-200 hover:text-white hover:border-white/25 transition-all shadow-lg flex items-center gap-1.5" title="Toggle Famous Places List (Key: O)">
+          <svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="9" y1="3" x2="9" y2="21"/>
+          </svg>
+          <span>Places (12)</span>
+        </button>
+
+        <!-- Right N-Panel Toggle Button -->
+        <button id="btn-toggle-npanel" class="blender-surface rounded-lg px-2.5 py-1.5 text-xs font-semibold text-neutral-200 hover:text-white hover:border-white/25 transition-all shadow-lg flex items-center gap-1.5" title="Toggle 3D Controls Panel (Key: N)">
+          <svg class="w-4 h-4 text-[#e87d0d]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="15" y1="3" x2="15" y2="21"/>
+          </svg>
+          <span>Controls</span>
+        </button>
+
+        <!-- Clean View / Hide Panels Button -->
+        <button id="btn-clear-view" class="blender-surface rounded-lg px-2 py-1.5 text-xs font-medium text-neutral-300 hover:text-white hover:border-white/25 transition-all shadow-lg flex items-center gap-1" title="Close All Panels for Unobstructed 3D View (Key: H)">
+          <svg class="w-3.5 h-3.5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          <span class="hidden md:inline">Clean View</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- COLLAPSIBLE LEFT OUTLINER: FAMOUS PLACES & EXPLORER PASSPORT -->
+    <aside id="left-outliner" class="fixed top-14 left-2.5 bottom-11 w-[285px] max-w-[calc(100vw-20px)] z-30 blender-surface rounded-xl shadow-2xl flex flex-col overflow-hidden transition-transform duration-300 ease-out -translate-x-[320px]">
+      <!-- Outliner Header -->
+      <div class="px-3 py-2 border-b border-white/10 flex items-center justify-between bg-black/30">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+          <span class="text-xs font-semibold tracking-wider uppercase text-neutral-200">Mars Places (12)</span>
+        </div>
+        <button id="btn-close-outliner" class="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors" title="Hide Places Outliner">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Search + Category Filter Pills -->
+      <div class="p-2 border-b border-white/10 space-y-2 bg-black/15">
+        <div class="relative">
+          <input id="outliner-search" type="text" placeholder="Search volcanoes, rovers, ice..." class="w-full bg-[#141519] border border-white/10 focus:border-[#e87d0d] rounded-md pl-7 pr-2.5 py-1.5 text-xs text-white placeholder-neutral-500 outline-none select-text" style="user-select: text; -webkit-user-select: text;">
+          <svg class="w-3.5 h-3.5 text-neutral-500 absolute left-2.5 top-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </div>
+
+        <div class="flex flex-wrap gap-1">
+          <button data-category="all" class="cat-pill active px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[#e87d0d] bg-[#e87d0d]/25 text-white transition-all">
+            All (12)
+          </button>
+          <button data-category="volcanoes" class="cat-pill px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 border border-white/10 text-neutral-300 hover:text-white transition-all">
+            🌋 Volcanoes
+          </button>
+          <button data-category="canyons" class="cat-pill px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 border border-white/10 text-neutral-300 hover:text-white transition-all">
+            🏜️ Canyons
+          </button>
+          <button data-category="rovers" class="cat-pill px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 border border-white/10 text-neutral-300 hover:text-white transition-all">
+            🤖 Craters &amp; Rovers
+          </button>
+          <button data-category="mysteries" class="cat-pill px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 border border-white/10 text-neutral-300 hover:text-white transition-all">
+            ❄️ Ice &amp; Mysteries
+          </button>
+        </div>
+      </div>
+
+      <!-- Scrollable List of 12 Famous Places with Stamp Checkmarks -->
+      <div id="outliner-landmarks-list" class="flex-1 overflow-y-auto thin-scroll p-2 space-y-1"></div>
+
+      <!-- Explorer Passport Progress Footer -->
+      <div class="p-2.5 border-t border-white/10 bg-black/30">
+        <div class="flex items-center justify-between text-[11px] mb-1">
+          <span class="font-medium text-neutral-300">Explorer Passport</span>
+          <span id="passport-progress-label" class="font-mono-tech text-amber-300 font-semibold">0 / 12 Visited</span>
+        </div>
+        <div class="w-full h-2 rounded-full bg-[#141519] overflow-hidden border border-white/10">
+          <div id="passport-progress-bar" class="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-400 transition-all duration-500" style="width: 0%"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- KID-FRIENDLY & PRO 'MARS EXPLORER CARD' (Replaces left slot cleanly without double-stacking) -->
+    <section id="landmark-inspector" class="hidden fixed top-14 left-2.5 bottom-11 w-[360px] max-w-[calc(100vw-20px)] z-30 blender-surface rounded-xl shadow-2xl border border-white/15 flex flex-col overflow-hidden transition-all duration-300">
+      <!-- Top Color Accent Bar -->
+      <div id="insp-accent-bar" class="h-1.5 w-full bg-[#e87d0d] shrink-0"></div>
+
+      <!-- Card Header: Nickname Badge, Stamp Status, Listen Audio Button & Close -->
+      <div class="px-3 pt-2.5 pb-2 flex items-start justify-between gap-1.5 border-b border-white/10 bg-black/25 shrink-0">
+        <div class="min-w-0">
+          <div class="flex items-center flex-wrap gap-1.5 mb-1">
+            <button id="btn-back-to-places" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-neutral-200 transition-colors" title="Back to all 12 Mars places">
+              ← Places
+            </button>
+            <span id="insp-badge" class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#e87d0d]/25 text-[#ffb25c] border border-[#e87d0d]/45">
+              🌋 Giant Shield Volcano
+            </span>
+            <span id="insp-stamp-pill" class="stamp-pop text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
+              ✓ Stamp!
+            </span>
+          </div>
+          <h2 id="insp-title" class="text-base font-bold text-white leading-snug truncate">Olympus Mons</h2>
+          <p id="insp-subtitle" class="text-xs text-amber-200/90 font-medium truncate">"The Mega Mountain" — Tallest in the Solar System</p>
+        </div>
+
+        <div class="flex items-center gap-1 shrink-0">
+          <!-- Audio Read-Aloud Button -->
+          <button id="btn-listen-audio" class="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/40 text-xs font-semibold text-sky-200 flex items-center gap-1.5 transition-all" title="Listen to Kid Story Read Aloud">
+            <span id="listen-icon">🔊</span>
+            <span id="listen-label">Listen</span>
+          </button>
+
+          <button id="btn-close-inspector" class="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-neutral-400 hover:text-white transition-colors" title="Close Explorer Card (Esc)">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Scrollable Kid Story, Size Comparison, Fun Fact, Mini Quiz & Scientist Telemetry -->
+      <div id="insp-scroll-body" class="flex-1 min-h-0 overflow-y-auto thin-scroll p-3.5 space-y-3 text-xs leading-relaxed text-neutral-200">
+      <div class="bg-[#101218] border-b border-white/10 shrink-0">
+        <!-- Picture Mode Tabs -->
+        <div class="px-3 py-1.5 flex items-center justify-between gap-2 bg-black/30 border-b border-white/5">
+          <div class="flex items-center gap-1">
+            <button id="pic-tab-kid" class="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#e87d0d] text-white shadow-sm transition-all flex items-center gap-1">
+              <span>🎨</span>
+              <span>Kid Illustration</span>
+            </button>
+            <button id="pic-tab-nasa" class="px-2.5 py-1 rounded-md text-[11px] font-medium text-neutral-300 hover:text-white hover:bg-white/10 transition-all flex items-center gap-1">
+              <span>🛰️</span>
+              <span>NASA Space Photo</span>
+            </button>
+          </div>
+          <span id="insp-index" class="text-[10px] font-mono-tech text-neutral-400">Stop 1 of 12</span>
+        </div>
+
+        <!-- Visual Frame (175px tall) -->
+        <div class="relative w-full h-[175px] overflow-hidden bg-[#0a0c12]">
+          <!-- Canvas for Kid Illustration & Fallback NASA Radar Scan -->
+          <canvas id="kid-illustration-canvas" width="680" height="340" class="w-full h-full object-cover block"></canvas>
+
+          <!-- Real NASA Space Photo Container -->
+          <div id="nasa-photo-wrapper" class="hidden absolute inset-0 bg-[#0a0c12] flex items-center justify-center">
+            <img id="nasa-space-photo" alt="NASA Mars Observation" class="w-full h-full object-cover" width="680" height="340" loading="lazy" decoding="async" />
+            <div id="nasa-photo-loading" class="absolute inset-0 flex flex-col items-center justify-center bg-[#0b0d14]/85 text-xs text-neutral-300 gap-1.5">
+              <div class="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+              <span class="font-mono-tech text-[11px]">Loading NASA Spacecraft Photo...</span>
+            </div>
+            <div id="nasa-photo-caption" class="absolute bottom-0 inset-x-0 px-2.5 py-1 bg-gradient-to-t from-black/90 via-black/60 to-transparent text-[10px] font-mono-tech text-neutral-200 flex items-center justify-between">
+              <span id="nasa-caption-text">NASA / JPL / Wikimedia Commons</span>
+              <span id="nasa-source-badge" class="px-1.5 py-0.2 rounded bg-sky-500/30 text-sky-200 border border-sky-400/30">ORBITER VIEW</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+        <!-- Easy-to-Read Kid Story -->
+        <div class="space-y-2">
+          <p id="insp-kid-story-1" class="text-[13px] leading-relaxed text-neutral-100"></p>
+          <p id="insp-kid-story-2" class="text-xs leading-relaxed text-neutral-300"></p>
+        </div>
+
+        <!-- Visual Fun Size Comparison Bar -->
+        <div class="rounded-lg bg-[#171920] border border-white/10 p-2.5 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1">
+              <span>📏</span>
+              <span>How Big Is It? (Size Comparison)</span>
+            </span>
+            <span id="insp-scale-badge" class="text-[10px] font-mono-tech text-neutral-400">2.5× Everest</span>
+          </div>
+
+          <div class="space-y-1.5">
+            <div>
+              <div class="flex justify-between text-[11px] mb-0.5">
+                <span id="comp-earth-label" class="text-sky-300 font-medium">Earth: Mount Everest (8.8 km)</span>
+                <span id="comp-earth-val" class="font-mono-tech text-neutral-400">35%</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-black/50 overflow-hidden">
+                <div id="comp-earth-bar" class="h-full rounded-full bg-sky-400 transition-all duration-500" style="width: 35%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] mb-0.5">
+                <span id="comp-mars-label" class="text-amber-300 font-semibold">Mars: Olympus Mons (21.9 km)</span>
+                <span id="comp-mars-val" class="font-mono-tech text-amber-300">100%</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-black/50 overflow-hidden">
+                <div id="comp-mars-bar" class="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-500" style="width: 100%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 'Did You Know?' Fun Fact Box -->
+        <div class="rounded-lg bg-gradient-to-r from-amber-500/15 to-purple-500/15 border border-amber-400/35 p-2.5">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1 flex items-center gap-1.5">
+            <span>💡</span>
+            <span>Did You Know? Fun Fact!</span>
+          </div>
+          <p id="insp-fun-fact" class="text-xs text-amber-50/95 leading-relaxed"></p>
+        </div>
+
+        <!-- Interactive 1-Question Mini Quiz -->
+        <div class="rounded-lg bg-[#181b24] border border-indigo-400/30 p-2.5 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1">
+              <span>🧠</span>
+              <span>Mars Explorer Mini Quiz</span>
+            </span>
+            <span id="quiz-status-badge" class="text-[10px] font-mono-tech text-neutral-400">Pick an answer!</span>
+          </div>
+          <p id="quiz-question" class="text-xs font-semibold text-white"></p>
+          <div id="quiz-options" class="space-y-1.5"></div>
+          <div id="quiz-feedback" class="hidden text-[11px] font-medium px-2.5 py-1.5 rounded-md"></div>
+        </div>
+
+        <!-- Expandable Scientist Telemetry (Auto-expanded in Pro Studio Mode) -->
+        <details id="scientist-telemetry-details" class="rounded-lg bg-[#15171c] border border-white/10 overflow-hidden">
+          <summary class="px-2.5 py-2 text-[11px] font-semibold text-neutral-300 hover:text-white cursor-pointer flex items-center justify-between bg-white/5">
+            <span class="flex items-center gap-1.5">
+              <span>🔬</span>
+              <span>Scientist Telemetry &amp; Mission Data</span>
+            </span>
+            <span class="text-[10px] font-mono-tech text-neutral-400">Expand</span>
+          </summary>
+          <div class="p-2.5 space-y-2 border-t border-white/10">
+            <div class="grid grid-cols-2 gap-1.5 text-[11px]">
+              <div class="bg-black/35 px-2 py-1.5 rounded">
+                <div class="text-[9px] uppercase text-neutral-400">Coordinates</div>
+                <div id="insp-coords" class="font-mono-tech text-neutral-100">18.65°N, 133.8°W</div>
+              </div>
+              <div class="bg-black/35 px-2 py-1.5 rounded">
+                <div class="text-[9px] uppercase text-neutral-400">Elevation / Depth</div>
+                <div id="insp-elevation" class="font-mono-tech text-[#e87d0d] font-semibold">+21.9 km</div>
+              </div>
+              <div class="bg-black/35 px-2 py-1.5 rounded">
+                <div class="text-[9px] uppercase text-neutral-400">Scale / Diameter</div>
+                <div id="insp-size" class="font-mono-tech text-neutral-100">624 km diameter</div>
+              </div>
+              <div class="bg-black/35 px-2 py-1.5 rounded">
+                <div class="text-[9px] uppercase text-neutral-400">Spacecraft Mission</div>
+                <div id="insp-mission" class="text-sky-300 truncate">Mars Express / MRO</div>
+              </div>
+            </div>
+            <ul id="insp-facts" class="space-y-1 text-[11px] text-neutral-300 pt-1"></ul>
+          </div>
+        </details>
+      </div>
+
+      <!-- Tour Navigation Footer -->
+      <div class="px-3 py-2 bg-black/35 border-t border-white/10 flex items-center justify-between gap-1.5 shrink-0">
+        <button id="btn-prev-landmark" class="px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/15 border border-white/10 text-xs font-medium text-neutral-200 transition-colors">
+          ← Previous
+        </button>
+        <button id="btn-global-view" class="px-2.5 py-1.5 rounded-md bg-[#4772b3]/25 hover:bg-[#4772b3]/45 border border-[#4772b3]/50 text-xs font-medium text-blue-200 transition-colors">
+          🌍 Global View
+        </button>
+        <button id="btn-next-landmark" class="px-3 py-1.5 rounded-md bg-gradient-to-r from-[#e87d0d] to-amber-500 hover:from-[#ff9224] hover:to-amber-400 text-xs font-semibold text-white shadow transition-all">
+          Next Stop →
+        </button>
+      </div>
+    </section>
+
+    <!-- NASA MOLA HYPSOMETRIC ELEVATION LEGEND (Shown in Elevation Mode) -->
+    <div id="mola-legend" class="hidden fixed bottom-11 right-2.5 z-20 blender-surface rounded-lg px-3 py-2 shadow-xl transition-all duration-300">
+      <div class="text-[10px] font-mono-tech uppercase tracking-wider text-neutral-300 mb-1">MOLA Elevation Scale</div>
+      <div class="w-44 h-2.5 rounded-sm bg-gradient-to-r from-[#1a297a] via-[#248fad] via-[#52bd6b] via-[#f0c73d] via-[#e03d29] to-[#fff5eb] border border-white/20"></div>
+      <div class="flex justify-between text-[10px] font-mono-tech text-neutral-400 mt-1">
+        <span>-8 km</span>
+        <span>0 km</span>
+        <span>+10 km</span>
+        <span>+22 km</span>
+      </div>
+    </div>
+
+    <!-- RIGHT-SIDE BLENDER PROPERTIES & 3D CONTROLS PANEL ("N-PANEL") -->
+    <aside id="n-panel" class="fixed top-14 right-2.5 bottom-11 w-[255px] max-w-[calc(100vw-20px)] z-30 blender-surface rounded-xl shadow-2xl flex flex-col overflow-hidden transition-transform duration-300 ease-out translate-x-[290px]">
+      <!-- N-Panel Header -->
+      <div class="px-3.5 py-2 border-b border-white/10 flex items-center justify-between bg-black/30">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-[#e87d0d]"></span>
+          <span class="text-xs font-semibold tracking-wider uppercase text-neutral-200">3D Controls</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button id="btn-reset-params" class="text-[11px] font-medium px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white border border-white/10 transition-colors" title="Reset all scene parameters">
+            Reset
+          </button>
+          <button id="btn-close-npanel" class="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors" title="Hide 3D Controls Panel (Key: N)">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Scrollable Accordion Body -->
+      <div class="flex-1 overflow-y-auto n-panel-scroll p-2.5 space-y-2.5">
+
+        <!-- SECTION 1: QUICK CAMERA BOOKMARKS -->
+        <div class="rounded-lg bg-[#23252b]/85 border border-white/10 overflow-hidden">
+          <button class="accordion-toggle w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold text-neutral-200 hover:bg-white/5 transition-colors" data-target="sec-cameras">
+            <span class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+              Quick Camera Views
+            </span>
+            <svg class="w-3.5 h-3.5 text-neutral-400 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div id="sec-cameras" class="p-2 border-t border-white/5 grid grid-cols-2 gap-1.5 text-[11px]">
+            <button data-cam-preset="global" class="cam-preset-btn px-2 py-1.5 rounded bg-[#18191e] hover:bg-[#e87d0d]/25 border border-white/10 hover:border-[#e87d0d]/50 text-neutral-200 font-medium transition-all">
+              🌍 Global Mars
+            </button>
+            <button data-cam-preset="north" class="cam-preset-btn px-2 py-1.5 rounded bg-[#18191e] hover:bg-[#e87d0d]/25 border border-white/10 hover:border-[#e87d0d]/50 text-neutral-200 font-medium transition-all">
+              ❄️ North Ice Cap
+            </button>
+            <button data-cam-preset="south" class="cam-preset-btn px-2 py-1.5 rounded bg-[#18191e] hover:bg-[#e87d0d]/25 border border-white/10 hover:border-[#e87d0d]/50 text-neutral-200 font-medium transition-all">
+              🧊 South Ice Cap
+            </button>
+            <button data-cam-preset="volcanoes" class="cam-preset-btn px-2 py-1.5 rounded bg-[#18191e] hover:bg-[#e87d0d]/25 border border-white/10 hover:border-[#e87d0d]/50 text-neutral-200 font-medium transition-all">
+              🌋 Mega Volcanoes
+            </button>
+            <button data-cam-preset="canyons" class="cam-preset-btn px-2 py-1.5 rounded bg-[#18191e] hover:bg-[#e87d0d]/25 border border-white/10 hover:border-[#e87d0d]/50 text-neutral-200 font-medium transition-all">
+              🏜️ Grand Canyon
+            </button>
+            <button data-cam-preset="phobos" class="cam-preset-btn px-2 py-1.5 rounded bg-[#18191e] hover:bg-[#e87d0d]/25 border border-white/10 hover:border-[#e87d0d]/50 text-neutral-200 font-medium transition-all">
+              🥔 Moon Phobos
+            </button>
+          </div>
+        </div>
+
+        <!-- SECTION 2: TERRAIN & SURFACE SCULPT -->
+        <div class="rounded-lg bg-[#23252b]/85 border border-white/10 overflow-hidden">
+          <button class="accordion-toggle w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold text-neutral-200 hover:bg-white/5 transition-colors" data-target="sec-sculpt">
+            <span class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-[#e87d0d]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+              Terrain &amp; Surface
+            </span>
+            <svg class="w-3.5 h-3.5 text-neutral-400 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div id="sec-sculpt" class="px-3 pb-3 pt-1.5 space-y-2.5 border-t border-white/5">
+            <!-- Terrain Height -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Terrain Height</span>
+                <span id="val-displacement" class="font-mono-tech text-[#e87d0d]">1.00x</span>
+              </div>
+              <input id="slider-displacement" type="range" min="0" max="3.0" step="0.05" value="1.00" class="blender-slider">
+            </div>
+
+            <!-- Surface Detail -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Surface Detail</span>
+                <span id="val-normal" class="font-mono-tech text-[#e87d0d]">1.45</span>
+              </div>
+              <input id="slider-normal" type="range" min="0" max="3.0" step="0.05" value="1.45" class="blender-slider">
+            </div>
+
+            <!-- Polar Ice Caps -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Polar Ice Caps</span>
+                <span id="val-ice" class="font-mono-tech text-[#e87d0d]">0.55</span>
+              </div>
+              <input id="slider-ice" type="range" min="0" max="1.0" step="0.02" value="0.55" class="blender-slider">
+            </div>
+
+            <!-- Rotation Speed -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Rotation Speed</span>
+                <span id="val-rot-speed" class="font-mono-tech text-[#e87d0d]">0.35x</span>
+              </div>
+              <input id="slider-rot-speed" type="range" min="0" max="3.0" step="0.05" value="0.35" class="blender-slider">
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 3: LIGHTING & CAMERA OPTICS -->
+        <div class="rounded-lg bg-[#23252b]/85 border border-white/10 overflow-hidden">
+          <button class="accordion-toggle w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold text-neutral-200 hover:bg-white/5 transition-colors" data-target="sec-lighting">
+            <span class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="1" y1="12" x2="3" y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+              </svg>
+              Lighting &amp; Optics
+            </span>
+            <svg class="w-3.5 h-3.5 text-neutral-400 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div id="sec-lighting" class="px-3 pb-3 pt-1.5 space-y-2.5 border-t border-white/5">
+            <!-- Sun Angle (Azimuth) -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Sun Angle (Azimuth)</span>
+                <span id="val-sun-az" class="font-mono-tech text-[#e87d0d]">42°</span>
+              </div>
+              <input id="slider-sun-az" type="range" min="-180" max="180" step="1" value="42" class="blender-slider">
+            </div>
+
+            <!-- Sun Elevation -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Sun Elevation</span>
+                <span id="val-sun-el" class="font-mono-tech text-[#e87d0d]">18°</span>
+              </div>
+              <input id="slider-sun-el" type="range" min="-90" max="90" step="1" value="18" class="blender-slider">
+            </div>
+
+            <!-- Axial Tilt -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Axial Tilt</span>
+                <span id="val-tilt" class="font-mono-tech text-[#e87d0d]">25.19°</span>
+              </div>
+              <input id="slider-tilt" type="range" min="0" max="45" step="0.05" value="25.19" class="blender-slider">
+            </div>
+
+            <!-- Camera FOV -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-neutral-300">Camera FOV</span>
+                <span id="val-fov" class="font-mono-tech text-[#e87d0d]">42°</span>
+              </div>
+              <input id="slider-fov" type="range" min="20" max="75" step="1" value="42" class="blender-slider">
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 4: SCENE LAYERS & MOONS -->
+        <div class="rounded-lg bg-[#23252b]/85 border border-white/10 overflow-hidden">
+          <button class="accordion-toggle w-full px-3 py-2 flex items-center justify-between text-left text-xs font-semibold text-neutral-200 hover:bg-white/5 transition-colors" data-target="sec-layers">
+            <span class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                <polyline points="2 17 12 22 22 17"/>
+                <polyline points="2 12 12 17 22 12"/>
+              </svg>
+              Scene Layers &amp; Moons
+            </span>
+            <svg class="w-3.5 h-3.5 text-neutral-400 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div id="sec-layers" class="p-2.5 border-t border-white/5 grid grid-cols-2 gap-1.5 text-[11px]">
+            <label class="flex items-center gap-1.5 px-2 py-1.5 rounded bg-[#18191e] hover:bg-white/5 cursor-pointer">
+              <input id="chk-atmosphere" type="checkbox" checked class="accent-[#e87d0d]">
+              <span class="text-neutral-300">Atmosphere</span>
+            </label>
+            <label class="flex items-center gap-1.5 px-2 py-1.5 rounded bg-[#18191e] hover:bg-white/5 cursor-pointer">
+              <input id="chk-clouds" type="checkbox" checked class="accent-[#e87d0d]">
+              <span class="text-neutral-300">Dust Clouds</span>
+            </label>
+            <label class="flex items-center gap-1.5 px-2 py-1.5 rounded bg-[#18191e] hover:bg-white/5 cursor-pointer">
+              <input id="chk-moons" type="checkbox" checked class="accent-[#e87d0d]">
+              <span class="text-neutral-300">Phobos/Deimos</span>
+            </label>
+            <label class="flex items-center gap-1.5 px-2 py-1.5 rounded bg-[#18191e] hover:bg-white/5 cursor-pointer">
+              <input id="chk-grid" type="checkbox" class="accent-[#e87d0d]">
+              <span class="text-neutral-300">Lat/Lon Grid</span>
+            </label>
+            <label class="col-span-2 flex items-center gap-1.5 px-2 py-1.5 rounded bg-[#18191e] hover:bg-white/5 cursor-pointer">
+              <input id="chk-pins" type="checkbox" checked class="accent-[#e87d0d]">
+              <span class="text-neutral-300">3D Surface Landmark Pins</span>
+            </label>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- BOTTOM TELEMETRY, CURSOR LAT/LON & BLENDER STATUS BAR -->
+    <footer class="absolute bottom-2 left-2.5 right-2.5 z-30 flex items-center justify-between gap-2 pointer-events-none">
+      <!-- Left Telemetry & Live Cursor Lat/Lon Readout -->
+      <div class="blender-surface rounded-lg px-3 py-1.5 flex items-center gap-2.5 text-[11px] font-mono-tech text-neutral-300 shadow-lg pointer-events-auto">
+        <span class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span id="telemetry-fps">60 FPS</span>
+        </span>
+        <span class="text-white/15">|</span>
+        <span class="hidden sm:inline">Tris: <strong class="text-white font-medium">98,304</strong></span>
+        <span class="text-white/15">|</span>
+        <span id="telemetry-cursor" class="text-amber-300">Hover Mars for Lat/Lon</span>
+      </div>
+
+      <!-- Right Tool Hint & Hotkeys Legend -->
+      <div class="hidden md:flex blender-surface rounded-lg px-3 py-1.5 items-center gap-2.5 text-[11px] text-neutral-400 shadow-lg">
+        <span id="status-tool-hint" class="text-neutral-200 font-medium">Click any glowing pin to explore &amp; earn a stamp!</span>
+        <span class="text-white/15">|</span>
+        <span><strong class="text-neutral-200">1-4</strong> Shading</span>
+        <span class="text-white/15">·</span>
+        <span><strong class="text-neutral-200">M</strong> Measure</span>
+        <span class="text-white/15">·</span>
+        <span><strong class="text-neutral-200">N</strong> Controls</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Main Three.js Application Logic -->
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+    // =========================================================================
+    // 1. DETERMINISTIC 3D NOISE & FRACTAL BROWNIAN MOTION (fBm) ON UNIT SPHERE
+    // =========================================================================
+    class SphericalNoise3D {
+      constructor(seed = 4201) {
+        this.perm = new Uint8Array(512);
+        const p = new Uint8Array(256);
+        for (let i = 0; i < 256; i++) p[i] = i;
+        let s = seed >>> 0;
+        for (let i = 255; i > 0; i--) {
+          s = (s * 1664525 + 1013904223) >>> 0;
+          const j = s % (i + 1);
+          const tmp = p[i];
+          p[i] = p[j];
+          p[j] = tmp;
+        }
+        for (let i = 0; i < 512; i++) {
+          this.perm[i] = p[i & 255];
+        }
+      }
+
+      noise(x, y, z) {
+        const X = Math.floor(x) & 255;
+        const Y = Math.floor(y) & 255;
+        const Z = Math.floor(z) & 255;
+
+        x -= Math.floor(x);
+        y -= Math.floor(y);
+        z -= Math.floor(z);
+
+        const u = x * x * x * (x * (x * 6 - 15) + 10);
+        const v = y * y * y * (y * (y * 6 - 15) + 10);
+        const w = z * z * z * (z * (z * 6 - 15) + 10);
+
+        const p = this.perm;
+        const A = p[X] + Y;
+        const AA = p[A] + Z;
+        const AB = p[A + 1] + Z;
+        const B = p[X + 1] + Y;
+        const BA = p[B] + Z;
+        const BB = p[B + 1] + Z;
+
+        const grad = (hash, gx, gy, gz) => {
+          const h = hash & 15;
+          const gu = h < 8 ? gx : gy;
+          const gv = h < 4 ? gy : (h === 12 || h === 14 ? gx : gz);
+          return ((h & 1) === 0 ? gu : -gu) + ((h & 2) === 0 ? gv : -gv);
+        };
+
+        const x1 = grad(p[AA], x, y, z) + u * (grad(p[BA], x - 1, y, z) - grad(p[AA], x, y, z));
+        const x2 = grad(p[AB], x, y - 1, z) + u * (grad(p[BB], x - 1, y - 1, z) - grad(p[AB], x, y - 1, z));
+        const y1 = x1 + v * (x2 - x1);
+
+        const x3 = grad(p[AA + 1], x, y, z - 1) + u * (grad(p[BA + 1], x - 1, y, z - 1) - grad(p[AA + 1], x, y, z - 1));
+        const x4 = grad(p[AB + 1], x, y - 1, z - 1) + u * (grad(p[BB + 1], x - 1, y - 1, z - 1) - grad(p[AB + 1], x, y - 1, z - 1));
+        const y2 = x3 + v * (x4 - x3);
+
+        return y1 + w * (y2 - y1);
+      }
+
+      fbm(x, y, z, octaves = 6) {
+        let sum = 0;
+        let amp = 0.5;
+        let freq = 1.0;
+        let norm = 0;
+        for (let i = 0; i < octaves; i++) {
+          sum += amp * this.noise(x * freq, y * freq, z * freq);
+          norm += amp;
+          freq *= 2.04;
+          amp *= 0.5;
+        }
+        return sum / norm;
+      }
+
+      ridged(x, y, z, octaves = 4) {
+        let sum = 0;
+        let amp = 0.5;
+        let freq = 1.0;
+        let prev = 1.0;
+        for (let i = 0; i < octaves; i++) {
+          let n = 1.0 - Math.abs(this.noise(x * freq, y * freq, z * freq));
+          n = n * n;
+          sum += n * amp * prev;
+          prev = Math.max(0.2, Math.min(1.0, n * 1.4));
+          freq *= 2.12;
+          amp *= 0.5;
+        }
+        return sum;
+      }
+    }
+
+    // =========================================================================
+    // 2. REAL-WORLD MARTIAN COORDINATES & 12 FAMOUS LANDMARKS DATABASE
+    // =========================================================================
+    const MARS_RADIUS_3D = 2.0;
+    const MARS_REAL_RADIUS_KM = 3389.5;
+    const BASE_DISPLACEMENT_SCALE = 0.082;
+
+    function latLonToUnitVec(latDeg, lonDeg) {
+      const u = (((lonDeg + 180) % 360) + 360) % 360 / 360;
+      const v = (latDeg + 90) / 180;
+      const phi = u * Math.PI * 2;
+      const theta = (1 - v) * Math.PI;
+      return new THREE.Vector3(
+        -Math.cos(phi) * Math.sin(theta),
+        Math.cos(theta),
+        Math.sin(phi) * Math.sin(theta)
+      ).normalize();
+    }
+
+    function unitVecToLatLon(unitVec) {
+      const v = unitVec.clone().normalize();
+      const lat = THREE.MathUtils.radToDeg(Math.asin(Math.max(-1, Math.min(1, v.y))));
+      // Inverse of: nx = -cos(phi)*sin(theta), nz = sin(phi)*sin(theta)
+      let phi = Math.atan2(v.z, -v.x);
+      if (phi < 0) phi += Math.PI * 2;
+      let lon = (phi / (Math.PI * 2)) * 360 - 180;
+      if (lon > 180) lon -= 360;
+      if (lon < -180) lon += 360;
+      return { lat, lon };
+    }
+
+    function formatLatLon(lat, lon) {
+      const ns = lat >= 0 ? 'N' : 'S';
+      const ew = lon >= 0 ? 'E' : 'W';
+      return `${Math.abs(lat).toFixed(2)}°${ns}, ${Math.abs(lon).toFixed(2)}°${ew}`;
+    }
+
+    const FAMOUS_PLACES = [
+      {
+        id: 'olympus-mons',
+        emoji: '🌋',
+        name: 'Olympus Mons',
+        nickname: 'The Mega Mountain',
+        type: 'Giant Shield Volcano',
+        category: 'volcanoes',
+        subtitle: 'Tallest Planetary Mountain in the Solar System',
+        lat: 18.65,
+        lon: -133.8,
+        elevation: '+21.9 km',
+        size: '624 km diameter',
+        mission: 'Mars Express / MRO',
+        nasaFile: 'Olympus_Mons.jpg',
+        nasaCredit: 'NASA Viking 1 Orbiter Mosaic',
+        camDist: 3.45,
+        color: '#f59e0b',
+        scaleBadge: '2.5× Taller than Everest!',
+        compEarthLabel: 'Earth: Mount Everest (8.8 km)',
+        compEarthPct: 38,
+        compMarsLabel: 'Mars: Olympus Mons (21.9 km)',
+        compMarsPct: 100,
+        kidStory1: 'Imagine stacking nearly THREE Mount Everests on top of each other—that is how tall Olympus Mons is! Because Mars does not have moving tectonic plates like Earth, hot melted rock kept bubbling up in the exact same spot for millions of years, building the biggest volcano in our Solar System.',
+        kidStory2: 'Its sides slope so gently that if you were an astronaut standing on it, you wouldn’t even realize you were climbing a giant mountain! Around its bottom edge sits a dramatic 8-kilometer-tall cliff wall, and at the very top are six giant collapsed craters.',
+        funFact: 'Olympus Mons is so wide (624 km across) that its base would cover the entire state of Arizona or all of Poland!',
+        quiz: {
+          question: 'Why did Olympus Mons grow so much bigger than volcanoes on Earth?',
+          options: [
+            'Mars has no moving crust plates, so lava piled up in one spot',
+            'Astronauts built it out of red space bricks',
+            'Giant alien snowstorms froze it into a cone'
+          ],
+          correctIndex: 0,
+          explanation: 'Bingo! Without moving tectonic plates, the volcanic hotspot stayed under the same spot for millions of years.'
+        },
+        desc1: 'Olympus Mons is a colossal basaltic shield volcano towering nearly 22 kilometers above the Martian datum—roughly two and a half times the height of Mount Everest above sea level.',
+        desc2: 'Its gentle 5° slopes are bounded around the base by an 8-kilometer-tall cliff scarp, while its summit houses six nested collapse calderas measuring 85 by 60 kilometers across.',
+        facts: [
+          'Base area (~300,000 km²) is comparable to the size of Arizona or Poland.',
+          'Summit atmospheric pressure is just 12% of Mars’s average surface pressure.',
+          'Youngest lava flows on its flanks date to ~25 million years ago.'
+        ]
+      },
+      {
+        id: 'tharsis-montes',
+        emoji: '🔥',
+        name: 'Tharsis Montes',
+        nickname: 'Three Volcano Giants in a Row',
+        type: 'Volcanic Chain',
+        category: 'volcanoes',
+        subtitle: 'Ascraeus, Pavonis & Arsia Montes Alignment',
+        lat: 0.8,
+        lon: -113.4,
+        elevation: '+14.1 to +18.2 km',
+        size: '1,500 km chain',
+        mission: 'Mariner 9 / Viking',
+        nasaFile: 'Tharsis_Montes.jpg',
+        nasaCredit: 'NASA Viking Orbiter View',
+        camDist: 3.85,
+        color: '#fb923c',
+        scaleBadge: '3 Mega-Volcanoes in a Line',
+        compEarthLabel: 'Earth: Mauna Loa, Hawaii (9.1 km from seafloor)',
+        compEarthPct: 50,
+        compMarsLabel: 'Mars: Ascraeus Mons (18.2 km)',
+        compMarsPct: 100,
+        kidStory1: 'Look closely near Mars’s equator and you will spot THREE colossal volcanoes lined up in a straight row like giant stepping stones! Their names are Ascraeus Mons, Pavonis Mons, and Arsia Mons.',
+        kidStory2: 'Together, these three volcanoes sit on top of a huge bulge of rock called the Tharsis Rise. They were so heavy that their weight actually cracked the planet’s crust and helped create Valles Marineris nearby!',
+        funFact: 'Every afternoon on Mars, puffy white water-ice clouds gather around the tops of these three volcanoes—just like clouds around mountain peaks on Earth!',
+        quiz: {
+          question: 'How are the three Tharsis Montes volcanoes arranged on Mars?',
+          options: [
+            'In a triangle around the South Pole',
+            'In a straight line near the equator',
+            'Floating inside an underground ocean'
+          ],
+          correctIndex: 1,
+          explanation: 'Awesome job! Ascraeus, Pavonis, and Arsia Montes line up in a remarkably straight row across the Tharsis bulge.'
+        },
+        desc1: 'The Tharsis Montes are three gigantic shield volcanoes aligned along a southwest-to-northeast structural rift across the equator of the Tharsis volcanic bulge.',
+        desc2: 'The immense crustal weight of the Tharsis volcanic province warped Mars’s lithosphere and fractured the crust eastward to help initiate Valles Marineris.',
+        facts: [
+          'Ascraeus Mons reaches +18.2 km, second only to Olympus Mons.',
+          'Arsia Mons features the largest single caldera on Mars at 110 km wide.',
+          'Water-ice clouds frequently form over their summits each Martian afternoon.'
+        ]
+      },
+      {
+        id: 'valles-marineris',
+        emoji: '🏜️',
+        name: 'Valles Marineris',
+        nickname: 'The Super Grand Canyon',
+        type: 'Tectonic Rift Canyon',
+        category: 'canyons',
+        subtitle: 'Grand Canyon of Mars (4,000 km Rift System)',
+        lat: -13.9,
+        lon: -59.2,
+        elevation: '-7.0 km depth',
+        size: '4,000 km × 200 km',
+        mission: 'Mariner 9 / HiRISE',
+        nasaFile: 'Mars_Valles_Marineris.jpeg',
+        nasaCredit: 'NASA Viking 1 Orbiter Global View',
+        camDist: 3.55,
+        color: '#fb7185',
+        scaleBadge: '10× Longer than Grand Canyon!',
+        compEarthLabel: 'Earth: Grand Canyon, USA (446 km long)',
+        compEarthPct: 12,
+        compMarsLabel: 'Mars: Valles Marineris (4,000 km long)',
+        compMarsPct: 100,
+        kidStory1: 'Think Earth’s Grand Canyon is big? Valles Marineris makes it look like a tiny crack in the sidewalk! This mega-canyon stretches 4,000 kilometers across Mars—wide enough to reach all the way from Los Angeles to New York City!',
+        kidStory2: 'Instead of being carved slowly by a river, Valles Marineris formed when Mars’s rocky crust stretched and split open like a giant zipper, followed by massive landslides and ancient floods.',
+        funFact: 'In the chilly Martian mornings, wispy white fog made of water ice fills the bottom of Valles Marineris just like mist in an Earth valley!',
+        quiz: {
+          question: 'If you put Valles Marineris on Earth, how far would it stretch?',
+          options: [
+            'Across a single city block',
+            'All the way across the United States (coast to coast)',
+            'From a bedroom to the kitchen'
+          ],
+          correctIndex: 1,
+          explanation: 'Spot on! At 4,000 km long, Valles Marineris spans the entire width of the United States!'
+        },
+        desc1: 'Stretching across nearly one-quarter of Mars’s circumference, Valles Marineris is the largest tectonic canyon system in the Solar System.',
+        desc2: 'Formed primarily by crustal rifting during the uplift of the Tharsis bulge, its sheer walls were widened by catastrophic landslides and ancient outflow floods.',
+        facts: [
+          'Revealed layered sulfate deposits pointing to ancient water activity.',
+          'Morning fogs of water ice often pool inside its deep canyon troughs.',
+          'Named after NASA’s Mariner 9 orbiter, which discovered it in 1971.'
+        ]
+      },
+      {
+        id: 'noctis-labyrinthus',
+        emoji: '🧩',
+        name: 'Noctis Labyrinthus',
+        nickname: 'Maze of the Night',
+        type: 'Fractured Canyon Maze',
+        category: 'canyons',
+        subtitle: 'Labyrinth of the Night Intersection',
+        lat: -7.0,
+        lon: -102.2,
+        elevation: '+6.5 km plateau',
+        size: '1,190 km span',
+        mission: 'MRO CRISM / Mars Express',
+        nasaFile: 'Noctis_Labyrinthus.jpg',
+        nasaCredit: 'ESA Mars Express / NASA MRO',
+        camDist: 3.55,
+        color: '#f43f5e',
+        scaleBadge: '1,190 km Criss-Cross Maze',
+        compEarthLabel: 'Earth: Largest Hedge Maze (0.5 km)',
+        compEarthPct: 8,
+        compMarsLabel: 'Mars: Noctis Labyrinthus (1,190 km)',
+        compMarsPct: 100,
+        kidStory1: 'Welcome to the "Labyrinth of the Night"! Sitting right between the giant Tharsis volcanoes and Valles Marineris is a wild, criss-crossing puzzle of deep valleys, steep cliffs, and sunken pits.',
+        kidStory2: 'Hot magma rising underground stretched and cracked the ground in every direction, leaving flat-topped rocky islands surrounded by deep canyon mazes.',
+        funFact: 'Scientists discovered colorful water-loving minerals like opal and clay inside this maze—clues that warm water once bubbled through the rocks!',
+        quiz: {
+          question: 'What does the Latin name "Noctis Labyrinthus" mean in English?',
+          options: [
+            'Labyrinth (Maze) of the Night',
+            'Castle of Ice Cream',
+            'Mountain of Fire'
+          ],
+          correctIndex: 0,
+          explanation: 'Correct! "Noctis" means night and "Labyrinthus" means maze!'
+        },
+        desc1: 'Positioned at the western headwaters of Valles Marineris on the crest of the Tharsis rise, Noctis Labyrinthus is an intricate web of intersecting steep-walled valleys.',
+        desc2: 'Intense extensional faulting and subsurface magma-ice interactions fractured the crust in multiple directions, leaving isolated flat-topped blocks (horsts).',
+        facts: [
+          'Contains diverse hydrated minerals including opal, clays, and sulfates.',
+          'Acts as the structural junction linking Tharsis volcanoes to Valles Marineris.',
+          'Adjacent to Noctis Volcano, a newly identified eroded volcanic edifice.'
+        ]
+      },
+      {
+        id: 'hellas-planitia',
+        emoji: '☄️',
+        name: 'Hellas Planitia',
+        nickname: 'The Giant Asteroid Bowl',
+        type: 'Giant Impact Basin',
+        category: 'rovers',
+        subtitle: 'Deepest Impact Crater on Mars',
+        lat: -42.4,
+        lon: 70.5,
+        elevation: '-7.15 km depth',
+        size: '2,300 km diameter',
+        mission: 'MOLA / Viking Orbiters',
+        nasaFile: 'Hellas_basin_topo.jpg',
+        nasaCredit: 'NASA MOLA Topographic Elevation Map',
+        camDist: 4.10,
+        color: '#38bdf8',
+        scaleBadge: '7.15 km Deep Impact Bowl!',
+        compEarthLabel: 'Earth: Chicxulub Dinosaur Crater (180 km)',
+        compEarthPct: 14,
+        compMarsLabel: 'Mars: Hellas Planitia (2,300 km)',
+        compMarsPct: 100,
+        kidStory1: 'About 4 billion years ago, a space rock the size of a small country slammed into southern Mars and blasted out Hellas Planitia—one of the biggest impact craters in the entire Solar System!',
+        kidStory2: 'This giant bowl plunges more than 7 kilometers deep into the ground. Because it is so deep, more air piles up at the bottom, making the air pressure nearly twice as thick as on the rest of Mars!',
+        funFact: 'Hellas Planitia is so huge and bright with dusty clouds that astronomers on Earth could see it through early telescopes back in the 1800s!',
+        quiz: {
+          question: 'How was the giant Hellas Planitia basin formed?',
+          options: [
+            'A colossal asteroid crashed into Mars 4 billion years ago',
+            'Martian rivers dug it out last summer',
+            'A giant volcano collapsed upside down'
+          ],
+          correctIndex: 0,
+          explanation: 'You nailed it! A massive asteroid impact carved this 2,300-km-wide basin billions of years ago.'
+        },
+        desc1: 'Hellas Planitia is a colossal oval impact basin carved in the southern highlands roughly 4 billion years ago during the Late Heavy Bombardment.',
+        desc2: 'Its floor plunges more than 7 kilometers below the Martian datum, creating the highest surface atmospheric pressure on Mars (up to 12.4 mbar).',
+        facts: [
+          'Excavated material formed a raised ring of mountains around its perimeter.',
+          'Frequently acts as a source region for planet-encircling Martian dust storms.',
+          'Visible from Earth as a bright, dusty oval in the southern hemisphere.'
+        ]
+      },
+      {
+        id: 'gale-crater',
+        emoji: '🤖',
+        name: 'Gale Crater & Mt. Sharp',
+        nickname: 'Curiosity Rover’s Home',
+        type: 'Rover Landing Site',
+        category: 'rovers',
+        subtitle: 'Curiosity Rover Exploration Basin',
+        lat: -5.4,
+        lon: 137.8,
+        elevation: '-4.5 km floor',
+        size: '154 km diameter',
+        mission: 'NASA Curiosity (2012–Present)',
+        nasaFile: '7505_mars-curiosity-rover-gale-crater-beauty-shot-pia19839-full2.jpg',
+        nasaCredit: 'NASA Curiosity Rover Selfie (PIA19839)',
+        camDist: 3.45,
+        color: '#34d399',
+        scaleBadge: '5.5 km Mountain Inside a Crater!',
+        compEarthLabel: 'Size of Curiosity Rover: SUV Car (3 m)',
+        compEarthPct: 22,
+        compMarsLabel: 'Mount Sharp Center Peak (5.5 km high)',
+        compMarsPct: 100,
+        kidStory1: 'Gale Crater is a giant 154-kilometer-wide crater with a surprise right in the middle: a towering 5.5-kilometer-tall layered mountain called Mount Sharp! Even cooler—NASA’s car-sized Curiosity rover has been exploring here since 2012!',
+        kidStory2: 'As Curiosity climbs up Mount Sharp, its laser and rock drill read the rock layers like pages in a history book, proving that Gale Crater was once filled with freshwater lakes and streams!',
+        funFact: 'Curiosity uses a camera on the end of its 2-meter robotic arm to snap awesome selfies on Mars—and every August 5th it even hums "Happy Birthday" to itself!',
+        quiz: {
+          question: 'What did NASA’s Curiosity rover discover inside Gale Crater?',
+          options: [
+            'Ancient dried-up freshwater lakes and mudstones',
+            'Underground coral reefs and sharks',
+            'A hidden pyramid made of gold'
+          ],
+          correctIndex: 0,
+          explanation: 'Great discovery! Curiosity found ancient lakebed mudstones showing Mars once had liquid water.'
+        },
+        desc1: 'Gale Crater is a 3.7-billion-year-old impact crater dominated at its center by Aeolis Mons (Mount Sharp), a 5.5-kilometer-tall stratified mountain.',
+        desc2: 'Since landing in August 2012, NASA’s Curiosity rover has climbed Mount Sharp’s lower slopes, discovering ancient freshwater lakebeds and organic carbon molecules.',
+        facts: [
+          'Mount Sharp preserves hundreds of millions of years of climate history in rock layers.',
+          'Curiosity detected seasonal methane spikes and complex organic compounds.',
+          'Named after Australian amateur astronomer Walter Frederick Gale.'
+        ]
+      },
+      {
+        id: 'jezero-crater',
+        emoji: '🚁',
+        name: 'Jezero Crater',
+        nickname: 'Ancient Lake & Helicopter Port',
+        type: 'Rover Landing Site',
+        category: 'rovers',
+        subtitle: 'Ancient Paleolake & River Delta',
+        lat: 18.38,
+        lon: 77.58,
+        elevation: '-2.57 km floor',
+        size: '45 km diameter',
+        mission: 'NASA Perseverance & Ingenuity',
+        nasaFile: 'Jezero_Crater_Rim_Panorama_NASA_Perseverance_rover.jpg',
+        nasaCredit: 'NASA Perseverance Mastcam-Z Panorama',
+        camDist: 3.45,
+        color: '#10b981',
+        scaleBadge: 'First Flight on Another Planet!',
+        compEarthLabel: 'Wright Brothers First Flight (37 m)',
+        compEarthPct: 15,
+        compMarsLabel: 'Ingenuity Helicopter Total Flights (72 flights!)',
+        compMarsPct: 100,
+        kidStory1: 'Billions of years ago, a rushing river poured straight into Jezero Crater and filled it up like a giant swimming pool! In fact, the word "Jezero" means "lake" in several Slavic languages.',
+        kidStory2: 'In 2021, NASA’s Perseverance rover landed here carrying a tiny solar-powered robot helicopter named Ingenuity—which made history by performing the very first powered flight on another planet!',
+        funFact: 'Perseverance is sealing special Martian rock cores inside super-clean metal tubes so a future rocket mission can bring them back to Earth for kids and scientists to study!',
+        quiz: {
+          question: 'What historic "first" happened inside Jezero Crater in 2021?',
+          options: [
+            'The first powered helicopter flight on another planet (Ingenuity)',
+            'The first Martian baseball game',
+            'The first submarine dive on Mars'
+          ],
+          correctIndex: 0,
+          explanation: 'Woohoo! Ingenuity made 72 flights in Mars’s super-thin air—100 times thinner than Earth’s!'
+        },
+        desc1: 'Located on the western edge of Isidis Planitia, Jezero Crater once held a deep standing lake fed by a winding river channel that deposited a fan-shaped delta.',
+        desc2: 'NASA’s Perseverance rover and Ingenuity helicopter landed here in February 2021 to search for biosignatures of ancient microbial life and cache rock samples.',
+        facts: [
+          '"Jezero" means "lake" in several Slavic languages.',
+          'Delta clays and carbonates are prime targets for preserving fossil biosignatures.',
+          'Site of the first powered, controlled flight on another planet (Ingenuity).'
+        ]
+      },
+      {
+        id: 'elysium-mons',
+        emoji: '🏔️',
+        name: 'Elysium Mons',
+        nickname: 'The Eastern Lonely Peak',
+        type: 'Shield Volcano',
+        category: 'volcanoes',
+        subtitle: 'Dominant Peak of Eastern Mars',
+        lat: 25.02,
+        lon: 147.21,
+        elevation: '+13.9 km',
+        size: '375 km diameter',
+        mission: 'InSight / Mars Reconnaissance Orbiter',
+        nasaFile: 'Elysium_Mons.jpg',
+        nasaCredit: 'NASA Mars Global Surveyor MOC',
+        camDist: 3.55,
+        color: '#fbbf24',
+        scaleBadge: '13.9 km High Volcanic Cone',
+        compEarthLabel: 'Earth: Mount Kilimanjaro (5.9 km)',
+        compEarthPct: 42,
+        compMarsLabel: 'Mars: Elysium Mons (13.9 km)',
+        compMarsPct: 100,
+        kidStory1: 'On the opposite side of Mars from Olympus Mons stands Elysium Mons, a tall, pointy shield volcano rising nearly 14 kilometers into the pink Martian sky with a big round crater at its tip.',
+        kidStory2: 'Long ago, melted lava and underground ice collided along its sides, carving long river-like channels that froze solid when Mars turned cold.',
+        funFact: 'Not far from Elysium Mons, NASA’s InSight lander placed a super-sensitive seismometer on the ground and listened to over 1,300 real "Marsquakes"!',
+        quiz: {
+          question: 'What did NASA’s InSight lander detect near Elysium Mons?',
+          options: [
+            'Over 1,300 "Marsquakes" shaking the planet’s crust',
+            'Underground subway trains',
+            'Giant flocks of space birds'
+          ],
+          correctIndex: 0,
+          explanation: 'Right on! InSight measured Marsquakes to help scientists see what is inside Mars’s core and mantle.'
+        },
+        desc1: 'Elysium Mons is the tallest volcano in the Elysium volcanic province, Mars’s second-largest volcanic region located in the eastern hemisphere.',
+        desc2: 'Rising nearly 14 kilometers above the northern plains, its cone is crowned by a 14-kilometer-wide circular summit caldera and flanked by linear fracture troughs.',
+        facts: [
+          'Located ~1,800 km northwest of NASA’s InSight seismic lander.',
+          'Features steeper upper flanks than the giant Tharsis shield volcanoes.',
+          'Surrounded by Hecates Tholus and Albor Tholus.'
+        ]
+      },
+      {
+        id: 'syrtis-major',
+        emoji: '🔭',
+        name: 'Syrtis Major Planum',
+        nickname: 'The First Martian Clock',
+        type: 'Dark Basaltic Shield',
+        category: 'mysteries',
+        subtitle: 'First Mapped Feature on Another Planet',
+        lat: 8.4,
+        lon: 69.5,
+        elevation: '+1.5 km',
+        size: '1,350 × 1,500 km',
+        mission: 'Christiaan Huygens (1659) / MGS',
+        nasaFile: 'Syrtis_Major_Mars.jpg',
+        nasaCredit: 'NASA Hubble Space Telescope / MGS',
+        camDist: 3.75,
+        color: '#a78bfa',
+        scaleBadge: 'First Feature Drawn on Mars (1659)',
+        compEarthLabel: 'Earth Day: 24 hours 00 minutes',
+        compEarthPct: 97,
+        compMarsLabel: 'Mars Day (Sol): 24 hours 37 minutes',
+        compMarsPct: 100,
+        kidStory1: 'See that big dark triangle shape on Mars? That is Syrtis Major—a huge, low, flat volcano covered in dark black volcanic sand instead of bright rusty-orange dust!',
+        kidStory2: 'In the year 1659, a Dutch astronomer named Christiaan Huygens spotted Syrtis Major through his telescope and timed how long it took to spin around—discovering that a day on Mars is 24 hours and 37 minutes, almost the same as Earth!',
+        funFact: 'Martian windstorms blow orange dust back and forth over Syrtis Major each season, making the dark patch look like it changes shape!',
+        quiz: {
+          question: 'How long is one day (called a "Sol") on Mars, discovered by watching Syrtis Major?',
+          options: [
+            'About 24 hours and 37 minutes (almost like Earth!)',
+            'Only 10 minutes long',
+            '100 Earth years'
+          ],
+          correctIndex: 0,
+          explanation: 'Awesome! A Martian Sol is just 37 minutes longer than an Earth day!'
+        },
+        desc1: 'Syrtis Major Planum is a vast, dark low-relief basaltic shield volcano positioned along the boundary between Mars’s northern lowlands and southern highlands.',
+        desc2: 'Its dark volcanic sand contrasts sharply with bright iron-oxide dust, enabling Christiaan Huygens to sketch it in 1659 and measure the Martian day.',
+        facts: [
+          'Seasonal winds blow bright dust across its dark basalt, changing its apparent shape.',
+          'Hosts two central calderas: Nili Patera and Meroe Patera.',
+          'Rich in pyroxene and olivine volcanic minerals.'
+        ]
+      },
+      {
+        id: 'cydonia-mensae',
+        emoji: '🗿',
+        name: 'Cydonia Mensae',
+        nickname: 'The Famous "Face on Mars" Hills',
+        type: 'Dichotomy Mesas',
+        category: 'mysteries',
+        subtitle: 'Flat-Topped Buttes & Optical Illusions',
+        lat: 40.75,
+        lon: -9.46,
+        elevation: '-1.8 km',
+        size: '450 km region',
+        mission: 'Viking 1 / Mars Express HRSC',
+        nasaFile: 'Le_visage_de_Cydonia_Mensae_planète_Mars.jpg',
+        nasaCredit: 'ESA Mars Express High-Resolution Stereo Camera',
+        camDist: 3.55,
+        color: '#c084fc',
+        scaleBadge: 'Nature’s Coolest Shadow Trick!',
+        compEarthLabel: 'Earth: Monument Valley Buttes (300 m)',
+        compEarthPct: 45,
+        compMarsLabel: 'Mars: Cydonia Flat-Topped Mesas (700 m)',
+        compMarsPct: 100,
+        kidStory1: 'In 1976, NASA’s Viking 1 spacecraft snapped a photo of a rocky hill in Cydonia Mensae where low sunlight and shadows made it look just like a giant human face staring up into space!',
+        kidStory2: 'Years later, newer spacecraft with super-sharp cameras flew back over Cydonia and revealed the secret: it’s not a statue at all—it’s a natural flat-topped rocky hill (called a mesa) sculpted by ancient wind and ice!',
+        funFact: 'Seeing faces in clouds, toast, or Martian hills is a real brain superpower called "pareidolia"!',
+        quiz: {
+          question: 'What did sharp new spacecraft cameras prove the "Face on Mars" really is?',
+          options: [
+            'A natural flat-topped rocky hill (mesa) with shadows',
+            'A giant mirror for alien spaceships',
+            'A pile of Martian marshmallows'
+          ],
+          correctIndex: 0,
+          explanation: 'Exactly! Low-angle sunlight and shadows tricked our eyes—up close it is a natural eroded mesa!'
+        },
+        desc1: 'Cydonia Mensae lies along the rugged Martian dichotomy boundary separating the smooth northern plains from the ancient cratered southern highlands.',
+        desc2: 'Erosion by ancient glaciers, groundwater, and wind carved the plateau into isolated flat-topped mesas—including the famous 1976 Viking 1 "Face on Mars" mesa.',
+        facts: [
+          'High-resolution Mars Express imagery confirmed the mesas are natural eroded landforms.',
+          'Shows evidence of debris aprons formed by ancient ice-rich landslides.',
+          'Located near the shoreline of a putative ancient northern ocean.'
+        ]
+      },
+      {
+        id: 'planum-boreum',
+        emoji: '❄️',
+        name: 'Planum Boreum',
+        nickname: 'The Cinnamon-Roll North Pole',
+        type: 'North Polar Ice Cap',
+        category: 'mysteries',
+        subtitle: 'Spiral Water & CO₂ Polar Ice Dome',
+        lat: 85.0,
+        lon: 0.0,
+        elevation: '+2.0 km ice dome',
+        size: '1,100 km diameter',
+        mission: 'NASA Phoenix / MRO SHARAD',
+        nasaFile: 'USGS-Mars-MC-1_Map_of_Planum_Boreum_cropped.jpg',
+        nasaCredit: 'NASA / USGS North Polar Mosaic',
+        camDist: 3.85,
+        color: '#7dd3fc',
+        scaleBadge: '3 km Thick Solid Water Ice!',
+        compEarthLabel: 'Size of Texas (700,000 km²)',
+        compEarthPct: 68,
+        compMarsLabel: 'North Polar Ice Cap (1,000,000+ km²)',
+        compMarsPct: 100,
+        kidStory1: 'Fly over Mars’s North Pole and you’ll see a dazzling white ice cap swirled with dark canyons—it looks just like a giant frosted cinnamon roll!',
+        kidStory2: 'This huge dome is made of real water ice and dust up to 3 kilometers thick! In the freezing Martian winter, an extra layer of "dry ice" (frozen carbon dioxide gas) snows down on top of it.',
+        funFact: 'If all the water ice in Mars’s North Pole melted at once, it would cover the whole planet in an ocean 11 meters (36 feet) deep!',
+        quiz: {
+          question: 'What is Mars’s permanent North Polar Ice Cap mostly made of?',
+          options: [
+            'Real frozen water ice mixed with dust layers',
+            'Vanilla ice cream and sugar',
+            'Solid liquid gold'
+          ],
+          correctIndex: 0,
+          explanation: 'Correct! Planum Boreum holds ~1.6 million cubic kilometers of real water ice!'
+        },
+        desc1: 'Planum Boreum is Mars’s permanent north polar cap, composed of finely layered water ice and dust up to 3 kilometers thick.',
+        desc2: 'Katabatic winds spiraling off the pole and solar sublimation have carved dramatic pinwheel-like spiral troughs and Chasma Boreale into the ice sheet.',
+        facts: [
+          'Contains ~1.6 million km³ of water ice—enough to cover Mars in an 11-meter ocean.',
+          'Spiral troughs expose thousands of fine climate-record dust-ice layers.',
+          'NASA’s Phoenix lander sampled subsurface water ice just south of this cap in 2008.'
+        ]
+      },
+      {
+        id: 'planum-australe',
+        emoji: '🧊',
+        name: 'Planum Australe',
+        nickname: 'Swiss-Cheese Ice & Geysers',
+        type: 'South Polar Ice Cap',
+        category: 'mysteries',
+        subtitle: 'Perennial Dry Ice & Water Ice Cap',
+        lat: -85.0,
+        lon: 0.0,
+        elevation: '+3.5 km',
+        size: '400 km residual cap',
+        mission: 'Mars Polar Lander / MARSIS',
+        nasaFile: 'Mars_South_Pole.jpg',
+        nasaCredit: 'NASA Viking Orbiter 2 South Polar Cap',
+        camDist: 3.85,
+        color: '#60a5fa',
+        scaleBadge: 'Coldest Place on Mars (-130°C)!',
+        compEarthLabel: 'Earth Freezer Temperature (-18°C)',
+        compEarthPct: 15,
+        compMarsLabel: 'Mars South Pole Winter (-130°C / -202°F)',
+        compMarsPct: 100,
+        kidStory1: 'Brrr! Welcome to the coldest place on Mars! At the South Pole, temperatures plunge to -130°C (-202°F)—so cold that the air itself freezes into solid dry ice!',
+        kidStory2: 'As sunlight warms the ice in spring, round pits form that look just like slices of Swiss cheese, while trapped gas bursts upward like dark geysers spraying black dust across the white snow!',
+        funFact: 'Spacecraft radar discovered huge amounts of frozen water buried underneath the dry-ice cap—plus mysterious underground radar reflections!',
+        quiz: {
+          question: 'What happens at Mars’s South Pole when spring sunlight warms the frozen dry ice?',
+          options: [
+            'Swiss-cheese pits form and gas geysers shoot dark dust fans',
+            'Palm trees sprout out of the snow',
+            'The ice turns into hot lava'
+          ],
+          correctIndex: 0,
+          explanation: 'Superstar explorer! Sunlight vaporizes the dry ice from below, creating Swiss-cheese pits and dark geyser fans.'
+        },
+        desc1: 'Perched high in the southern hemisphere, Planum Australe features a permanent residual cap of frozen carbon dioxide overlying layered water ice.',
+        desc2: 'Long, frigid southern winters preserve perennial solid CO₂ slabs sculpted with "Swiss-cheese" sublimation pits and springtime CO₂ geysers.',
+        facts: [
+          'Subsurface radar (MARSIS) mapped massive buried CO₂ and water ice reservoirs.',
+          'Springtime CO₂ jets erupt through the seasonal ice, leaving dark fan deposits.',
+          'Roughly 3.7 km thick across the layered polar deposits.'
+        ]
+      }
+    ].map((place, index) => ({
+      ...place,
+      index,
+      unitPos: latLonToUnitVec(place.lat, place.lon),
+      surfaceHeight01: 0.5
+    }));
+
+    // =========================================================================
+    // 3. THREE.JS SCENE, RENDERER, CAMERA & LIGHTING RIG
+    // =========================================================================
+    const canvas = document.getElementById('mars-canvas');
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x05060a);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0.4, 2.3, 6.2);
+
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 2.45;
+    controls.maxDistance = 16.0;
+    controls.rotateSpeed = 0.72;
+    controls.zoomSpeed = 0.85;
+
+    let cameraFlyAnim = null;
+    controls.addEventListener('start', () => {
+      cameraFlyAnim = null;
+    });
+
+    // Primary Solar Directional Light + Subtle Bounce/Rim Fill
+    const sunLight = new THREE.DirectionalLight(0xfff4e6, 2.85);
+    sunLight.position.set(16, 8, 17);
+    scene.add(sunLight);
+
+    const ambientLight = new THREE.AmbientLight(0x3a2832, 0.32);
+    scene.add(ambientLight);
+
+    const rimLight = new THREE.DirectionalLight(0x4b74b8, 0.28);
+    rimLight.position.set(-14, -6, -12);
+    scene.add(rimLight);
+
+    // Deep-Space Starfield
+    {
+      const starCount = 2600;
+      const starPositions = new Float32Array(starCount * 3);
+      const starColors = new Float32Array(starCount * 3);
+      let s = 918273;
+      const rand = () => {
+        s = (s * 1664525 + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+      for (let i = 0; i < starCount; i++) {
+        const u = rand() * 2 - 1;
+        const theta = rand() * Math.PI * 2;
+        const r = 75 + rand() * 65;
+        const sq = Math.sqrt(1 - u * u);
+        starPositions[i * 3] = r * sq * Math.cos(theta);
+        starPositions[i * 3 + 1] = r * u;
+        starPositions[i * 3 + 2] = r * sq * Math.sin(theta);
+
+        const tint = rand();
+        const brightness = 0.55 + rand() * 0.45;
+        starColors[i * 3] = brightness * (tint > 0.75 ? 1.0 : 0.88);
+        starColors[i * 3 + 1] = brightness * 0.92;
+        starColors[i * 3 + 2] = brightness * (tint < 0.35 ? 1.0 : 0.84);
+      }
+      const starGeo = new THREE.BufferGeometry();
+      starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+      starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+      const starMat = new THREE.PointsMaterial({
+        size: 0.24,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.9,
+        sizeAttenuation: true
+      });
+      scene.add(new THREE.Points(starGeo, starMat));
+    }
+
+    // =========================================================================
+    // 4. PROCEDURAL SPHERICAL PBR TEXTURE PIPELINE (HEIGHT, NORMAL, ALBEDO)
+    // =========================================================================
+    const TEX_W = 1536;
+    const TEX_H = 768;
+    const noiseGen = new SphericalNoise3D(4201);
+
+    const OLYMPUS_DIR = latLonToUnitVec(18.65, -133.8);
+    const ASCRAEUS_DIR = latLonToUnitVec(11.9, -104.5);
+    const PAVONIS_DIR = latLonToUnitVec(0.8, -113.4);
+    const ARSIA_DIR = latLonToUnitVec(-8.35, -121.1);
+    const ELYSIUM_DIR = latLonToUnitVec(25.02, 147.21);
+    const HELLAS_DIR = latLonToUnitVec(-42.4, 70.5);
+    const GALE_DIR = latLonToUnitVec(-5.4, 137.8);
+    const JEZERO_DIR = latLonToUnitVec(18.38, 77.58);
+    const SYRTIS_DIR = latLonToUnitVec(8.4, 69.5);
+    const THARSIS_DIR = latLonToUnitVec(0.0, -112.0);
+
+    // Precompute deterministic impact craters across southern highlands
+    const craters = [];
+    {
+      let cs = 77123;
+      const crand = () => {
+        cs = (cs * 1664525 + 1013904223) >>> 0;
+        return cs / 4294967296;
+      };
+      for (let i = 0; i < 165; i++) {
+        const lat = (crand() * 145 - 82);
+        if (lat > 22 && crand() > 0.22) continue; // Fewer craters in northern lowlands
+        const lon = crand() * 360 - 180;
+        const radius = 0.014 + Math.pow(crand(), 2.6) * 0.075;
+        craters.push({
+          dir: latLonToUnitVec(lat, lon),
+          radius,
+          depth: 0.05 + radius * 1.45
+        });
+      }
+    }
+
+    function evaluateMartianElevation(nx, ny, nz) {
+      // Base crustal dichotomy (southern highlands vs northern lowlands)
+      const warp = noiseGen.fbm(nx * 2.4 + 3.1, ny * 2.4 - 1.7, nz * 2.4 + 0.8, 4) * 0.25;
+      const dichotomy = THREE.MathUtils.smoothstep(-ny + warp, -0.25, 0.35);
+
+      let h = 0.34 + dichotomy * 0.16;
+      h += noiseGen.fbm(nx * 3.2, ny * 3.2, nz * 3.2, 6) * 0.14;
+      h += (noiseGen.ridged(nx * 6.5, ny * 6.5, nz * 6.5, 4) - 0.35) * 0.07;
+
+      // Broad Tharsis volcanic bulge
+      const dTharsis = Math.acos(Math.max(-1, Math.min(1, nx * THARSIS_DIR.x + ny * THARSIS_DIR.y + nz * THARSIS_DIR.z)));
+      if (dTharsis < 0.72) {
+        const t = 1 - dTharsis / 0.72;
+        h += t * t * 0.14;
+      }
+
+      // Helper for shield volcanoes with summit caldera
+      const addVolcano = (dir, baseRad, peakHeight, calderaRad) => {
+        const d = Math.acos(Math.max(-1, Math.min(1, nx * dir.x + ny * dir.y + nz * dir.z)));
+        if (d < baseRad) {
+          const u = d / baseRad;
+          let cone = Math.pow(1 - u * u, 1.65) * peakHeight;
+          if (d < calderaRad) {
+            const cu = 1 - d / calderaRad;
+            cone -= cu * cu * peakHeight * 0.24;
+          }
+          h += cone;
+        }
+      };
+
+      addVolcano(OLYMPUS_DIR, 0.145, 0.42, 0.024);
+      addVolcano(ASCRAEUS_DIR, 0.105, 0.29, 0.017);
+      addVolcano(PAVONIS_DIR, 0.095, 0.24, 0.016);
+      addVolcano(ARSIA_DIR, 0.105, 0.27, 0.021);
+      addVolcano(ELYSIUM_DIR, 0.105, 0.23, 0.015);
+
+      // Valles Marineris tectonic canyon trough (-13.9°S, -85°W to -35°W)
+      const lonDeg = THREE.MathUtils.radToDeg(Math.atan2(nz, -nx)) - 180;
+      const normLon = ((lonDeg + 540) % 360) - 180;
+      const latDeg = THREE.MathUtils.radToDeg(Math.asin(Math.max(-1, Math.min(1, ny))));
+      if (normLon > -94 && normLon < -34) {
+        const canyonCenterLat = -12.5 - (normLon + 64) * 0.08 + Math.sin(normLon * 0.18) * 1.4;
+        const dLat = Math.abs(latDeg - canyonCenterLat);
+        const endTaper = THREE.MathUtils.smoothstep(normLon, -94, -84) * (1 - THREE.MathUtils.smoothstep(normLon, -44, -34));
+        const halfWidth = (2.8 + Math.sin(normLon * 0.25) * 0.8) * endTaper;
+        if (halfWidth > 0.1 && dLat < halfWidth * 2.2) {
+          const u = dLat / halfWidth;
+          const trench = Math.exp(-u * u * 1.65) * 0.26 * endTaper;
+          h -= trench;
+        }
+      }
+
+      // Noctis Labyrinthus fractured canyon maze (-7°S, -102.2°W)
+      if (normLon > -110 && normLon < -93 && latDeg > -14 && latDeg < 0) {
+        const maze = Math.abs(noiseGen.noise(nx * 46, ny * 46, nz * 46));
+        if (maze < 0.16) {
+          h -= (0.16 - maze) * 0.85;
+        }
+      }
+
+      // Helper for impact basins
+      const addBasin = (dir, rad, depth, centralPeak = 0) => {
+        const d = Math.acos(Math.max(-1, Math.min(1, nx * dir.x + ny * dir.y + nz * dir.z)));
+        if (d < rad * 1.25) {
+          const u = d / rad;
+          if (u < 1.0) {
+            h -= (1 - u * u) * depth;
+            if (centralPeak > 0 && u < 0.35) {
+              const pu = 1 - u / 0.35;
+              h += pu * pu * centralPeak;
+            }
+          } else {
+            const rim = 1 - (u - 1.0) / 0.25;
+            h += rim * rim * depth * 0.24;
+          }
+        }
+      };
+
+      addBasin(HELLAS_DIR, 0.28, 0.27, 0);
+      addBasin(GALE_DIR, 0.055, 0.11, 0.085); // Mount Sharp central peak
+      addBasin(JEZERO_DIR, 0.036, 0.075, 0);
+
+      // Procedural impact craters
+      for (let i = 0; i < craters.length; i++) {
+        const c = craters[i];
+        const dot = nx * c.dir.x + ny * c.dir.y + nz * c.dir.z;
+        if (dot > 0.96) {
+          const d = Math.acos(Math.min(1, dot));
+          if (d < c.radius * 1.25) {
+            const u = d / c.radius;
+            if (u < 1.0) {
+              h -= (1 - u * u) * c.depth;
+            } else {
+              const rim = 1 - (u - 1.0) / 0.25;
+              h += rim * rim * c.depth * 0.25;
+            }
+          }
+        }
+      }
+
+      return Math.max(0.02, Math.min(0.99, h));
+    }
+
+    const heightData = new Float32Array(TEX_W * TEX_H);
+    const dispBytes = new Uint8Array(TEX_W * TEX_H * 4);
+    const normBytes = new Uint8Array(TEX_W * TEX_H * 4);
+    const albedoBytes = new Uint8Array(TEX_W * TEX_H * 4);
+    const roughBytes = new Uint8Array(TEX_W * TEX_H * 4);
+
+    // 1) Synthesize Elevation Heightfield
+    for (let y = 0; y < TEX_H; y++) {
+      const v = 1 - y / (TEX_H - 1);
+      const theta = (1 - v) * Math.PI;
+      const sinT = Math.sin(theta);
+      const ny = Math.cos(theta);
+      for (let x = 0; x < TEX_W; x++) {
+        const u = x / TEX_W;
+        const phi = u * Math.PI * 2;
+        const nx = -Math.cos(phi) * sinT;
+        const nz = Math.sin(phi) * sinT;
+        const h = evaluateMartianElevation(nx, ny, nz);
+        const idx = y * TEX_W + x;
+        heightData[idx] = h;
+        const b = Math.round(h * 255);
+        dispBytes[idx * 4] = b;
+        dispBytes[idx * 4 + 1] = b;
+        dispBytes[idx * 4 + 2] = b;
+        dispBytes[idx * 4 + 3] = 255;
+      }
+    }
+
+    // Store exact sampled surface height for each of the 12 landmarks
+    FAMOUS_PLACES.forEach(place => {
+      const u = (((place.lon + 180) % 360) + 360) % 360 / 360;
+      const v = (place.lat + 90) / 180;
+      const px = Math.min(TEX_W - 1, Math.max(0, Math.round(u * (TEX_W - 1))));
+      const py = Math.min(TEX_H - 1, Math.max(0, Math.round((1 - v) * (TEX_H - 1))));
+      place.surfaceHeight01 = heightData[py * TEX_W + px];
+    });
+
+    // 2) Derive Tangent-Space Sobel Normal Map
+    const normalStrength = 4.6;
+    for (let y = 0; y < TEX_H; y++) {
+      const ym1 = Math.max(0, y - 1);
+      const yp1 = Math.min(TEX_H - 1, y + 1);
+      for (let x = 0; x < TEX_W; x++) {
+        const xm1 = (x - 1 + TEX_W) % TEX_W;
+        const xp1 = (x + 1) % TEX_W;
+
+        const tl = heightData[ym1 * TEX_W + xm1];
+        const tc = heightData[ym1 * TEX_W + x];
+        const tr = heightData[ym1 * TEX_W + xp1];
+        const ml = heightData[y * TEX_W + xm1];
+        const mr = heightData[y * TEX_W + xp1];
+        const bl = heightData[yp1 * TEX_W + xm1];
+        const bc = heightData[yp1 * TEX_W + x];
+        const br = heightData[yp1 * TEX_W + xp1];
+
+        const dX = (tr + 2 * mr + br) - (tl + 2 * ml + bl);
+        const dY = (bl + 2 * bc + br) - (tl + 2 * tc + tr);
+
+        let nx = -dX * normalStrength;
+        let ny = -dY * normalStrength;
+        let nz = 1.0;
+        const invLen = 1.0 / Math.hypot(nx, ny, nz);
+        nx *= invLen;
+        ny *= invLen;
+        nz *= invLen;
+
+        const idx = (y * TEX_W + x) * 4;
+        normBytes[idx] = Math.round((nx * 0.5 + 0.5) * 255);
+        normBytes[idx + 1] = Math.round((ny * 0.5 + 0.5) * 255);
+        normBytes[idx + 2] = Math.round((nz * 0.5 + 0.5) * 255);
+        normBytes[idx + 3] = 255;
+      }
+    }
+
+    // 3) Synthesize Albedo & Roughness Maps (Dynamic Polar Ice Caps)
+    function updateAlbedoAndRoughnessMaps(iceAmount) {
+      const northThreshold = 0.945 - iceAmount * 0.14;
+      const southThreshold = 0.955 - iceAmount * 0.12;
+
+      for (let y = 0; y < TEX_H; y++) {
+        const v = 1 - y / (TEX_H - 1);
+        const theta = (1 - v) * Math.PI;
+        const sinT = Math.sin(theta);
+        const ny = Math.cos(theta);
+
+        for (let x = 0; x < TEX_W; x++) {
+          const u = x / TEX_W;
+          const phi = u * Math.PI * 2;
+          const nx = -Math.cos(phi) * sinT;
+          const nz = Math.sin(phi) * sinT;
+
+          const pIdx = y * TEX_W + x;
+          const h = heightData[pIdx];
+          const detail = noiseGen.fbm(nx * 14.0, ny * 14.0, nz * 14.0, 3);
+          const dustMask = THREE.MathUtils.smoothstep(
+            noiseGen.fbm(nx * 4.5 - 2.0, ny * 4.5 + 1.3, nz * 4.5, 4),
+            -0.25,
+            0.32
+          );
+
+          // Dark basaltic Syrtis Major & southern maria patches
+          const dSyrtis = Math.acos(Math.max(-1, Math.min(1, nx * SYRTIS_DIR.x + ny * SYRTIS_DIR.y + nz * SYRTIS_DIR.z)));
+          const syrtisDark = 1 - THREE.MathUtils.smoothstep(dSyrtis, 0.08, 0.28);
+
+          // Base rusty iron-oxide ochre vs dark basaltic rock
+          let r = THREE.MathUtils.lerp(138, 214, dustMask) + detail * 28 + (h - 0.45) * 55;
+          let g = THREE.MathUtils.lerp(56, 108, dustMask) + detail * 16 + (h - 0.45) * 32;
+          let b = THREE.MathUtils.lerp(34, 62, dustMask) + detail * 10 + (h - 0.45) * 18;
+
+          // Darken Syrtis Major basaltic shield
+          r = THREE.MathUtils.lerp(r, 76, syrtisDark * 0.65);
+          g = THREE.MathUtils.lerp(g, 46, syrtisDark * 0.65);
+          b = THREE.MathUtils.lerp(b, 38, syrtisDark * 0.65);
+
+          let rough = 0.86 - dustMask * 0.06 + detail * 0.05;
+
+          // Polar Ice Caps with spiral trough modulation
+          const spiral = Math.sin(Math.atan2(nz, nx) * 3.0 + (1 - Math.abs(ny)) * 42.0) * 0.018;
+          const isNorthIce = iceAmount > 0.02 && (ny + detail * 0.035 + spiral) > northThreshold;
+          const isSouthIce = iceAmount > 0.02 && (-ny + detail * 0.03) > southThreshold;
+
+          if (isNorthIce || isSouthIce) {
+            r = 238 + detail * 14;
+            g = 243 + detail * 12;
+            b = 249 + detail * 6;
+            rough = 0.42;
+          }
+
+          const idx = pIdx * 4;
+          albedoBytes[idx] = Math.max(0, Math.min(255, Math.round(r)));
+          albedoBytes[idx + 1] = Math.max(0, Math.min(255, Math.round(g)));
+          albedoBytes[idx + 2] = Math.max(0, Math.min(255, Math.round(b)));
+          albedoBytes[idx + 3] = 255;
+
+          const rb = Math.max(40, Math.min(250, Math.round(rough * 255)));
+          roughBytes[idx] = rb;
+          roughBytes[idx + 1] = rb;
+          roughBytes[idx + 2] = rb;
+          roughBytes[idx + 3] = 255;
+        }
+      }
+    }
+    updateAlbedoAndRoughnessMaps(0.55);
+
+    const maxAniso = renderer.capabilities.getMaxAnisotropy();
+    function makeDataTex(bytes, isSRGB = false) {
+      const tex = new THREE.DataTexture(bytes, TEX_W, TEX_H, THREE.RGBAFormat);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.generateMipmaps = true;
+      tex.anisotropy = maxAniso;
+      if (isSRGB) tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    const albedoTexture = makeDataTex(albedoBytes, true);
+    const normalTexture = makeDataTex(normBytes, false);
+    const displacementTexture = makeDataTex(dispBytes, false);
+    const roughnessTexture = makeDataTex(roughBytes, false);
+
+    // =========================================================================
+    // 5. PLANETARY MESHES, BLENDER SHADERS, ATMOSPHERE & MOONS
+    // =========================================================================
+    const marsTiltGroup = new THREE.Group();
+    marsTiltGroup.rotation.z = THREE.MathUtils.degToRad(25.19);
+    scene.add(marsTiltGroup);
+
+    const marsSpinGroup = new THREE.Group();
+    marsTiltGroup.add(marsSpinGroup);
+
+    const marsGeo = new THREE.SphereGeometry(MARS_RADIUS_3D, 256, 192);
+
+    // Mode 1: Rendered PBR Material
+    const marsPBRMaterial = new THREE.MeshStandardMaterial({
+      map: albedoTexture,
+      normalMap: normalTexture,
+      normalScale: new THREE.Vector2(1.45, 1.45),
+      roughnessMap: roughnessTexture,
+      roughness: 1.0,
+      metalness: 0.02,
+      displacementMap: displacementTexture,
+      displacementScale: BASE_DISPLACEMENT_SCALE,
+      displacementBias: -BASE_DISPLACEMENT_SCALE * 0.48
+    });
+
+    // Mode 2: Blender Clay Sculpt MatCap Shader
+    const marsClayMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uDisplacementMap: { value: displacementTexture },
+        uDisplacementScale: { value: BASE_DISPLACEMENT_SCALE },
+        uDisplacementBias: { value: -BASE_DISPLACEMENT_SCALE * 0.48 }
+      },
+      vertexShader: `
+        uniform sampler2D uDisplacementMap;
+        uniform float uDisplacementScale;
+        uniform float uDisplacementBias;
+        varying vec3 vViewPos;
+        void main() {
+          float disp = texture2D(uDisplacementMap, uv).r * uDisplacementScale + uDisplacementBias;
+          vec3 displaced = position + normal * disp;
+          vec4 mvPos = modelViewMatrix * vec4(displaced, 1.0);
+          vViewPos = -mvPos.xyz;
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vViewPos;
+        void main() {
+          vec3 fdx = dFdx(vViewPos);
+          vec3 fdy = dFdy(vViewPos);
+          vec3 n = normalize(cross(fdx, fdy));
+          vec3 v = normalize(vViewPos);
+          vec3 keyDir = normalize(vec3(0.6, 0.75, 0.55));
+          vec3 rimDir = normalize(vec3(-0.7, -0.3, 0.4));
+          float diff = max(dot(n, keyDir), 0.0);
+          float fill = max(dot(n, rimDir), 0.0) * 0.25;
+          float fresnel = pow(1.0 - max(dot(n, v), 0.0), 2.5) * 0.22;
+          vec3 clayBase = vec3(0.68, 0.31, 0.22);
+          vec3 clayShadow = vec3(0.22, 0.09, 0.07);
+          vec3 col = mix(clayShadow, clayBase, diff * 0.85 + 0.15) + vec3(0.95, 0.68, 0.58) * (fill + fresnel);
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+
+    // Mode 3: Wireframe Topology Material
+    const marsWireMaterial = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.48
+    });
+
+    // Mode 4: NASA MOLA Hypsometric Elevation Shader
+    const marsElevationMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uDisplacementMap: { value: displacementTexture },
+        uDisplacementScale: { value: BASE_DISPLACEMENT_SCALE },
+        uDisplacementBias: { value: -BASE_DISPLACEMENT_SCALE * 0.48 }
+      },
+      vertexShader: `
+        uniform sampler2D uDisplacementMap;
+        uniform float uDisplacementScale;
+        uniform float uDisplacementBias;
+        varying float vElev;
+        void main() {
+          float h = texture2D(uDisplacementMap, uv).r;
+          vElev = h;
+          float disp = h * uDisplacementScale + uDisplacementBias;
+          vec3 displaced = position + normal * disp;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying float vElev;
+        vec3 molaRamp(float t) {
+          vec3 c0 = vec3(0.10, 0.16, 0.48);
+          vec3 c1 = vec3(0.14, 0.56, 0.68);
+          vec3 c2 = vec3(0.32, 0.74, 0.42);
+          vec3 c3 = vec3(0.94, 0.78, 0.24);
+          vec3 c4 = vec3(0.88, 0.24, 0.16);
+          vec3 c5 = vec3(1.00, 0.96, 0.92);
+          if (t < 0.22) return mix(c0, c1, t / 0.22);
+          if (t < 0.42) return mix(c1, c2, (t - 0.22) / 0.20);
+          if (t < 0.62) return mix(c2, c3, (t - 0.42) / 0.20);
+          if (t < 0.82) return mix(c3, c4, (t - 0.62) / 0.20);
+          return mix(c4, c5, clamp((t - 0.82) / 0.18, 0.0, 1.0));
+        }
+        void main() {
+          float contour = smoothstep(0.46, 0.50, abs(fract(vElev * 28.0) - 0.5));
+          vec3 col = molaRamp(vElev) * mix(0.78, 1.04, contour);
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+
+    const marsMesh = new THREE.Mesh(marsGeo, marsPBRMaterial);
+    marsSpinGroup.add(marsMesh);
+
+    // Subtle Atmospheric Dust & Water-Ice Cloud Shell
+    const cloudCanvas = document.createElement('canvas');
+    cloudCanvas.width = 512;
+    cloudCanvas.height = 256;
+    const cctx = cloudCanvas.getContext('2d');
+    const cimg = cctx.createImageData(512, 256);
+    for (let y = 0; y < 256; y++) {
+      const v = 1 - y / 255;
+      const theta = (1 - v) * Math.PI;
+      const sinT = Math.sin(theta);
+      const ny = Math.cos(theta);
+      for (let x = 0; x < 512; x++) {
+        const phi = (x / 512) * Math.PI * 2;
+        const nx = -Math.cos(phi) * sinT;
+        const nz = Math.sin(phi) * sinT;
+        const w = noiseGen.fbm(nx * 5.2 + 8.1, ny * 8.5, nz * 5.2 - 3.4, 4);
+        const alpha = THREE.MathUtils.smoothstep(w, 0.14, 0.48) * 78;
+        const idx = (y * 512 + x) * 4;
+        cimg.data[idx] = 255;
+        cimg.data[idx + 1] = 232;
+        cimg.data[idx + 2] = 214;
+        cimg.data[idx + 3] = Math.round(alpha);
+      }
+    }
+    cctx.putImageData(cimg, 0, 0);
+    const cloudTexture = new THREE.CanvasTexture(cloudCanvas);
+    cloudTexture.wrapS = THREE.RepeatWrapping;
+
+    const cloudMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(MARS_RADIUS_3D * 1.018, 96, 64),
+      new THREE.MeshStandardMaterial({
+        map: cloudTexture,
+        transparent: true,
+        opacity: 0.45,
+        depthWrite: false,
+        roughness: 0.95
+      })
+    );
+    marsSpinGroup.add(cloudMesh);
+
+    // GLSL Rayleigh/Fresnel Atmospheric Scattering Halo
+    const atmoMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uSunDir: { value: new THREE.Vector3(1, 0.4, 1).normalize() }
+      },
+      vertexShader: `
+        varying vec3 vWorldNormal;
+        varying vec3 vViewDir;
+        void main() {
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldNormal = normalize(mat3(modelMatrix) * normal);
+          vViewDir = normalize(cameraPosition - worldPos.xyz);
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uSunDir;
+        varying vec3 vWorldNormal;
+        varying vec3 vViewDir;
+        void main() {
+          float viewDot = dot(vWorldNormal, vViewDir);
+          float fresnel = pow(clamp(1.0 + viewDot, 0.0, 1.0), 3.4);
+          float sunSide = smoothstep(-0.35, 0.65, dot(-vWorldNormal, uSunDir));
+          vec3 dayHaze = vec3(0.95, 0.52, 0.28);
+          vec3 twilightBlue = vec3(0.38, 0.58, 0.88);
+          vec3 col = mix(twilightBlue, dayHaze, sunSide);
+          float alpha = fresnel * (0.14 + sunSide * 0.52);
+          gl_FragColor = vec4(col, alpha);
+        }
+      `,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      depthWrite: false
+    });
+
+    const atmoMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(MARS_RADIUS_3D * 1.068, 96, 64),
+      atmoMaterial
+    );
+    marsTiltGroup.add(atmoMesh);
+
+    // Latitude / Longitude Coordinate Graticule Grid
+    const graticuleGroup = new THREE.Group();
+    graticuleGroup.visible = false;
+    marsSpinGroup.add(graticuleGroup);
+    {
+      const gridMat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.28 });
+      const eqMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.55 });
+      const rGrid = MARS_RADIUS_3D * 1.024;
+
+      for (let lat = -75; lat <= 75; lat += 15) {
+        const pts = [];
+        const phiLat = THREE.MathUtils.degToRad(lat);
+        const y = Math.sin(phiLat) * rGrid;
+        const rRing = Math.cos(phiLat) * rGrid;
+        for (let i = 0; i <= 96; i++) {
+          const a = (i / 96) * Math.PI * 2;
+          pts.push(new THREE.Vector3(Math.cos(a) * rRing, y, Math.sin(a) * rRing));
+        }
+        graticuleGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lat === 0 ? eqMat : gridMat));
+      }
+
+      for (let lon = 0; lon < 180; lon += 15) {
+        const pts = [];
+        const thetaLon = THREE.MathUtils.degToRad(lon);
+        for (let i = 0; i <= 96; i++) {
+          const a = (i / 96) * Math.PI * 2;
+          pts.push(new THREE.Vector3(
+            Math.cos(a) * Math.cos(thetaLon) * rGrid,
+            Math.sin(a) * rGrid,
+            Math.cos(a) * Math.sin(thetaLon) * rGrid
+          ));
+        }
+        graticuleGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lon === 0 ? eqMat : gridMat));
+      }
+    }
+
+    // Orbiting Moons: Phobos & Deimos
+    const moonsGroup = new THREE.Group();
+    marsTiltGroup.add(moonsGroup);
+
+    const PHOBOS_ORBIT_R = 3.25;
+    const DEIMOS_ORBIT_R = 4.65;
+
+    function createPotatoMoon(radius, scaleVec, colorHex, seedOffset) {
+      const geo = new THREE.IcosahedronGeometry(radius, 3);
+      const pos = geo.attributes.position;
+      const v = new THREE.Vector3();
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+        const dir = v.clone().normalize();
+        const n = noiseGen.fbm(dir.x * 2.5 + seedOffset, dir.y * 2.5, dir.z * 2.5, 3);
+        v.multiplyScalar(1 + n * 0.22);
+        v.multiply(scaleVec);
+        pos.setXYZ(i, v.x, v.y, v.z);
+      }
+      geo.computeVertexNormals();
+      return new THREE.Mesh(
+        geo,
+        new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.92, metalness: 0.05 })
+      );
+    }
+
+    const phobosMesh = createPotatoMoon(0.068, new THREE.Vector3(1.35, 0.88, 1.05), 0x9c8f86, 11.3);
+    const deimosMesh = createPotatoMoon(0.044, new THREE.Vector3(1.22, 0.92, 1.0), 0xb5a89d, 27.9);
+    moonsGroup.add(phobosMesh, deimosMesh);
+
+    [PHOBOS_ORBIT_R, DEIMOS_ORBIT_R].forEach(orbitR => {
+      const pts = [];
+      for (let i = 0; i <= 128; i++) {
+        const a = (i / 128) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * orbitR, 0, Math.sin(a) * orbitR));
+      }
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12 })
+      );
+      moonsGroup.add(line);
+    });
+
+    // =========================================================================
+    // 6. GEODESIC SURFACE DISTANCE MEASUREMENT TOOL (KM)
+    // =========================================================================
+    const measureGroup = new THREE.Group();
+    marsSpinGroup.add(measureGroup);
+
+    const measureBadgeEl = document.getElementById('measure-badge');
+    const measureBadgeText = document.getElementById('measure-badge-text');
+    const btnClearMeasure = document.getElementById('btn-clear-measure');
+
+    let measureUnitPts = [];
+    let measureMidLocal = null;
+    let measureDistanceKm = 0;
+
+    function clearMeasurement() {
+      measureUnitPts = [];
+      measureMidLocal = null;
+      measureDistanceKm = 0;
+      while (measureGroup.children.length > 0) {
+        const child = measureGroup.children[0];
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+        measureGroup.remove(child);
+      }
+      measureBadgeEl.classList.add('hidden');
+      btnClearMeasure.classList.add('hidden');
+    }
+
+    btnClearMeasure.addEventListener('click', clearMeasurement);
+
+    function handleMeasureClick(localPt) {
+      if (measureUnitPts.length >= 2) {
+        clearMeasurement();
+      }
+      const unitDir = localPt.clone().normalize();
+      measureUnitPts.push(unitDir);
+
+      const surfacePos = unitDir.clone().multiplyScalar(MARS_RADIUS_3D * 1.022);
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.032, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0x22d3ee })
+      );
+      marker.position.copy(surfacePos);
+      measureGroup.add(marker);
+      btnClearMeasure.classList.remove('hidden');
+
+      if (measureUnitPts.length === 2) {
+        const [p1, p2] = measureUnitPts;
+        const angle = p1.angleTo(p2);
+        measureDistanceKm = angle * MARS_REAL_RADIUS_KM;
+
+        const arcPts = [];
+        const steps = 64;
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const interp = new THREE.Vector3().lerpVectors(p1, p2, t).normalize();
+          arcPts.push(interp.multiplyScalar(MARS_RADIUS_3D * 1.024));
+        }
+        const arcLine = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(arcPts),
+          new THREE.LineBasicMaterial({ color: 0x22d3ee })
+        );
+        measureGroup.add(arcLine);
+
+        measureMidLocal = new THREE.Vector3().addVectors(p1, p2).normalize().multiplyScalar(MARS_RADIUS_3D * 1.035);
+        measureBadgeText.textContent = `${Math.round(measureDistanceKm).toLocaleString()} km`;
+        measureBadgeEl.classList.remove('hidden');
+        showToast(`Surface Distance: ${Math.round(measureDistanceKm).toLocaleString()} km`);
+      }
+    }
+
+    const tempMeasureWorld = new THREE.Vector3();
+    function updateMeasureBadgeScreenPos() {
+      if (!measureMidLocal || measureUnitPts.length < 2) return;
+      tempMeasureWorld.copy(measureMidLocal);
+      marsSpinGroup.localToWorld(tempMeasureWorld);
+      tempMeasureWorld.project(camera);
+
+      if (tempMeasureWorld.z > 1.0) {
+        measureBadgeEl.classList.add('hidden');
+      } else {
+        measureBadgeEl.classList.remove('hidden');
+        const x = (tempMeasureWorld.x * 0.5 + 0.5) * window.innerWidth;
+        const y = (-tempMeasureWorld.y * 0.5 + 0.5) * window.innerHeight;
+        measureBadgeEl.style.left = `${x}px`;
+        measureBadgeEl.style.top = `${y}px`;
+      }
+    }
+
+    // =========================================================================
+    // 7. 12 FAMOUS PLACES: KID ILLUSTRATIONS, NASA PHOTOS, STAMPS & INSPECTOR
+    // =========================================================================
+    const landmarksLayer = document.getElementById('landmarks-layer');
+    const outlinerListEl = document.getElementById('outliner-landmarks-list');
+    const pinElements = [];
+
+    let selectedPlaceId = null;
+    let activeCategory = 'all';
+    let outlinerSearchQuery = '';
+    let pinsVisible = true;
+    let experienceMode = 'kid'; // 'kid' | 'pro'
+    let activePictureTab = 'kid'; // 'kid' | 'nasa'
+    const visitedPlaceIds = new Set();
+    const solvedQuizIds = new Set();
+
+    // Update Explorer Passport Stamps Counter & Progress Bar
+    function updatePassportUI() {
+      const count = visitedPlaceIds.size;
+      const total = FAMOUS_PLACES.length;
+      const pct = Math.round((count / total) * 100);
+
+      document.getElementById('passport-text').textContent = `Stamps: ${count} / ${total}`;
+      document.getElementById('passport-progress-label').textContent = `${count} / ${total} Visited`;
+      document.getElementById('passport-progress-bar').style.width = `${pct}%`;
+
+      const badge = document.getElementById('passport-badge');
+      const icon = document.getElementById('passport-icon');
+      if (count === total) {
+        icon.textContent = '🏆';
+        badge.classList.add('border-emerald-400', 'bg-emerald-500/20');
+      } else {
+        icon.textContent = '🏅';
+      }
+    }
+
+    // Custom Kid-Friendly HTML5 Canvas Illustrations for all 12 Famous Places
+    function drawKidIllustration(placeId) {
+      const c = document.getElementById('kid-illustration-canvas');
+      if (!c) return;
+      const ctx = c.getContext('2d');
+      const W = c.width;
+      const H = c.height;
+      ctx.clearRect(0, 0, W, H);
+
+      // Helper: Martian sky gradient + subtle stars
+      const drawMarsSky = (topCol = '#1c152e', midCol = '#8c3b2b', botCol = '#e68a5c', stars = true) => {
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, topCol);
+        g.addColorStop(0.55, midCol);
+        g.addColorStop(1, botCol);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+        if (stars) {
+          ctx.fillStyle = 'rgba(255,255,255,0.75)';
+          for (let i = 0; i < 28; i++) {
+            const sx = (i * 173 + 29) % W;
+            const sy = (i * 67 + 17) % (H * 0.42);
+            ctx.beginPath();
+            ctx.arc(sx, sy, (i % 3 === 0) ? 1.8 : 1.1, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      };
+
+      // Helper: Rounded pill label on canvas
+      const drawTag = (text, x, y, bg = 'rgba(15,18,26,0.82)', border = '#f59e0b', fg = '#fff') => {
+        ctx.save();
+        ctx.font = 'bold 15px Inter, sans-serif';
+        const tw = ctx.measureText(text).width;
+        const pw = tw + 22;
+        const ph = 28;
+        ctx.fillStyle = bg;
+        ctx.strokeStyle = border;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(x - pw / 2, y - ph / 2, pw, ph, 14);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = fg;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x, y + 1);
+        ctx.restore();
+      };
+
+      if (placeId === 'olympus-mons') {
+        drawMarsSky('#151226', '#7d3527', '#df7c50');
+        // Ground
+        ctx.fillStyle = '#9c3d1e';
+        ctx.fillRect(0, 275, W, 65);
+
+        // Left: Mount Everest comparison silhouette
+        ctx.fillStyle = '#475569';
+        ctx.beginPath();
+        ctx.moveTo(45, 275);
+        ctx.lineTo(115, 175);
+        ctx.lineTo(185, 275);
+        ctx.closePath();
+        ctx.fill();
+        // Snow cap on Everest
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.moveTo(115, 175);
+        ctx.lineTo(95, 204);
+        ctx.lineTo(108, 198);
+        ctx.lineTo(116, 207);
+        ctx.lineTo(132, 200);
+        ctx.closePath();
+        ctx.fill();
+        drawTag('Everest (8.8 km)', 115, 148, 'rgba(30,41,59,0.9)', '#38bdf8', '#bae6fd');
+
+        // Right: Colossal Olympus Mons Shield Volcano
+        const vg = ctx.createLinearGradient(0, 52, 0, 275);
+        vg.addColorStop(0, '#f97316');
+        vg.addColorStop(0.5, '#c2410c');
+        vg.addColorStop(1, '#7c2d12');
+        ctx.fillStyle = vg;
+        ctx.beginPath();
+        ctx.moveTo(210, 275);
+        ctx.lineTo(228, 232); // Basal cliff scarp
+        ctx.quadraticCurveTo(340, 95, 420, 62);
+        ctx.lineTo(485, 62); // Caldera flat top
+        ctx.quadraticCurveTo(565, 95, 655, 232);
+        ctx.lineTo(670, 275);
+        ctx.closePath();
+        ctx.fill();
+
+        // Caldera glow
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.ellipse(452, 62, 32, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Wispy clouds around volcano
+        ctx.fillStyle = 'rgba(255,255,255,0.65)';
+        ctx.beginPath();
+        ctx.ellipse(340, 130, 52, 11, 0, 0, Math.PI * 2);
+        ctx.ellipse(560, 145, 58, 12, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cute waving astronaut on foreground ledge
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(184, 240, 18, 22, 6);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(193, 231, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(195, 231, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        drawTag('Olympus Mons (21.9 km — 2.5× Taller!)', 455, 32, 'rgba(24,20,16,0.92)', '#f59e0b', '#fde68a');
+      } else if (placeId === 'tharsis-montes') {
+        drawMarsSky('#1a142d', '#863827', '#e58858');
+        ctx.fillStyle = '#8f371b';
+        ctx.fillRect(0, 265, W, 75);
+
+        const peaks = [
+          { x: 145, y: 78, w: 145, name: 'Ascraeus' },
+          { x: 340, y: 102, w: 140, name: 'Pavonis' },
+          { x: 535, y: 86, w: 145, name: 'Arsia' }
+        ];
+        peaks.forEach(p => {
+          const g = ctx.createLinearGradient(0, p.y, 0, 268);
+          g.addColorStop(0, '#ea580c');
+          g.addColorStop(1, '#7c2d12');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.moveTo(p.x - p.w, 268);
+          ctx.quadraticCurveTo(p.x - 45, p.y + 25, p.x - 18, p.y);
+          ctx.lineTo(p.x + 18, p.y);
+          ctx.quadraticCurveTo(p.x + 45, p.y + 25, p.x + p.w, 268);
+          ctx.closePath();
+          ctx.fill();
+
+          // Glowing caldera & afternoon ice cloud
+          ctx.fillStyle = '#fde047';
+          ctx.beginPath();
+          ctx.ellipse(p.x, p.y, 18, 5, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = 'rgba(224,242,254,0.8)';
+          ctx.beginPath();
+          ctx.ellipse(p.x + 16, p.y - 22, 38, 10, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          drawTag(p.name, p.x, 298, 'rgba(20,18,22,0.88)', '#fb923c', '#ffedd5');
+        });
+        drawTag('3 Giant Volcanoes Aligned in a Row!', 340, 30);
+      } else if (placeId === 'valles-marineris') {
+        drawMarsSky('#0f172a', '#1e293b', '#334155');
+        // Stylized USA Map Silhouette
+        ctx.fillStyle = '#2563eb';
+        ctx.strokeStyle = '#93c5fd';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(110, 95);
+        ctx.lineTo(545, 92);
+        ctx.lineTo(595, 72);
+        ctx.lineTo(615, 118);
+        ctx.lineTo(560, 205);
+        ctx.lineTo(535, 278); // Florida
+        ctx.lineTo(508, 272);
+        ctx.lineTo(485, 225);
+        ctx.lineTo(395, 232);
+        ctx.lineTo(355, 282); // Texas
+        ctx.lineTo(310, 276);
+        ctx.lineTo(270, 225);
+        ctx.lineTo(130, 215);
+        ctx.lineTo(95, 155);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Giant Valles Marineris Canyon stretched Coast-to-Coast across USA
+        ctx.strokeStyle = '#fb923c';
+        ctx.lineWidth = 18;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(118, 162);
+        ctx.bezierCurveTo(240, 145, 420, 185, 575, 148);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#7c2d12';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(118, 162);
+        ctx.bezierCurveTo(240, 145, 420, 185, 575, 148);
+        ctx.stroke();
+
+        drawTag('Los Angeles', 125, 240, 'rgba(15,23,42,0.9)', '#38bdf8', '#e0f2fe');
+        drawTag('New York', 575, 225, 'rgba(15,23,42,0.9)', '#38bdf8', '#e0f2fe');
+        drawTag('Valles Marineris (4,000 km) = Width of the USA!', 340, 36, 'rgba(28,16,12,0.92)', '#fb7185', '#ffe4e6');
+      } else if (placeId === 'noctis-labyrinthus') {
+        drawMarsSky('#120f26', '#4c1d3d', '#9a3412');
+        // Criss-crossing canyon mesas & glowing mist
+        ctx.fillStyle = '#c2410c';
+        ctx.fillRect(0, 115, W, 225);
+
+        // Dark canyon maze trenches
+        ctx.strokeStyle = '#291218';
+        ctx.lineWidth = 22;
+        const lines = [
+          [40, 140, 640, 280],
+          [80, 310, 610, 135],
+          [210, 115, 180, 340],
+          [460, 115, 495, 340],
+          [20, 225, 660, 220]
+        ];
+        lines.forEach(([x1, y1, x2, y2]) => {
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        });
+
+        // Mystical blue-gold morning fog inside trenches
+        ctx.strokeStyle = 'rgba(125, 211, 252, 0.45)';
+        ctx.lineWidth = 8;
+        lines.forEach(([x1, y1, x2, y2]) => {
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        });
+
+        drawTag('Noctis Labyrinthus — "Maze of the Night"', 340, 36, 'rgba(20,14,28,0.92)', '#f43f5e', '#ffe4e6');
+      } else if (placeId === 'hellas-planitia') {
+        drawMarsSky('#16142c', '#7c2d12', '#ea580c');
+        // Rim mountains
+        ctx.fillStyle = '#9a3412';
+        ctx.beginPath();
+        ctx.moveTo(0, 155);
+        ctx.lineTo(120, 128);
+        ctx.quadraticCurveTo(340, 325, 560, 128);
+        ctx.lineTo(680, 155);
+        ctx.lineTo(680, 340);
+        ctx.lineTo(0, 340);
+        ctx.closePath();
+        ctx.fill();
+
+        // Thicker air pool inside deep crater bowl
+        const bg = ctx.createLinearGradient(0, 145, 0, 255);
+        bg.addColorStop(0, 'rgba(251,191,36,0.08)');
+        bg.addColorStop(1, 'rgba(251,146,60,0.52)');
+        ctx.fillStyle = bg;
+        ctx.beginPath();
+        ctx.ellipse(340, 175, 215, 55, 0, 0, Math.PI);
+        ctx.fill();
+
+        // Incoming ancient asteroid illustration
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(155, 38);
+        ctx.lineTo(275, 118);
+        ctx.stroke();
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath();
+        ctx.arc(282, 122, 15, 0, Math.PI * 2);
+        ctx.fill();
+
+        drawTag('Hellas Planitia: 2,300 km Wide & 7.15 km Deep Bowl!', 340, 30, 'rgba(15,23,42,0.9)', '#38bdf8', '#e0f2fe');
+        drawTag('-7.15 km Deepest Floor on Mars', 340, 295, 'rgba(15,23,42,0.9)', '#38bdf8', '#bae6fd');
+      } else if (placeId === 'gale-crater') {
+        drawMarsSky('#2b192e', '#9a3412', '#f59e0b');
+        // Mount Sharp in background
+        ctx.fillStyle = '#b45309';
+        ctx.beginPath();
+        ctx.moveTo(280, 245);
+        ctx.lineTo(445, 95);
+        ctx.lineTo(525, 108);
+        ctx.lineTo(665, 245);
+        ctx.closePath();
+        ctx.fill();
+
+        // Sedimentary rock stripes on Mt. Sharp
+        ctx.strokeStyle = '#fde68a';
+        ctx.lineWidth = 3;
+        [145, 175, 205].forEach(y => {
+          ctx.beginPath();
+          ctx.moveTo(360, y);
+          ctx.lineTo(595, y);
+          ctx.stroke();
+        });
+
+        // Crater ground
+        ctx.fillStyle = '#7c2d12';
+        ctx.fillRect(0, 242, W, 98);
+
+        // Cute Curiosity Rover
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.roundRect(145, 202, 95, 36, 8);
+        ctx.fill();
+        // Mast & Camera Eyes
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(212, 155, 10, 48);
+        ctx.beginPath();
+        ctx.roundRect(198, 138, 38, 22, 6);
+        ctx.fill();
+        ctx.fillStyle = '#0ea5e9';
+        ctx.beginPath();
+        ctx.arc(217, 149, 7, 0, Math.PI * 2);
+        ctx.fill();
+        // 3 Visible Wheels
+        [156, 192, 228].forEach(wx => {
+          ctx.fillStyle = '#1e293b';
+          ctx.beginPath();
+          ctx.arc(wx, 248, 15, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#94a3b8';
+          ctx.beginPath();
+          ctx.arc(wx, 248, 6, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        drawTag('Curiosity Rover & Mount Sharp (5.5 km)', 340, 32, 'rgba(16,24,20,0.92)', '#34d399', '#a7f3d0');
+      } else if (placeId === 'jezero-crater') {
+        drawMarsSky('#1e1b4b', '#7c2d12', '#ea580c');
+        // Ancient blue paleolake & river delta
+        ctx.fillStyle = '#9a3412';
+        ctx.fillRect(0, 175, W, 165);
+        ctx.fillStyle = '#0284c7';
+        ctx.beginPath();
+        ctx.ellipse(455, 258, 195, 58, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Winding river feeding delta
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 14;
+        ctx.beginPath();
+        ctx.moveTo(140, 175);
+        ctx.quadraticCurveTo(235, 210, 295, 245);
+        ctx.stroke();
+
+        // Ingenuity Helicopter flying in sky!
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath();
+        ctx.roundRect(455, 104, 26, 20, 5);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(412, 95);
+        ctx.lineTo(524, 95);
+        ctx.stroke();
+        // Helicopter legs
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(460, 124);
+        ctx.lineTo(448, 140);
+        ctx.moveTo(476, 124);
+        ctx.lineTo(488, 140);
+        ctx.stroke();
+
+        // Perseverance Rover on shore
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(92, 232, 82, 30, 7);
+        ctx.fill();
+        ctx.fillRect(152, 196, 8, 36);
+        ctx.beginPath();
+        ctx.roundRect(142, 182, 28, 16, 4);
+        ctx.fill();
+        [104, 134, 164].forEach(wx => {
+          ctx.fillStyle = '#0f172a';
+          ctx.beginPath();
+          ctx.arc(wx, 270, 12, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        drawTag('Ancient Jezero Lake + Ingenuity Helicopter!', 340, 32, 'rgba(12,28,22,0.92)', '#10b981', '#a7f3d0');
+      } else if (placeId === 'elysium-mons') {
+        drawMarsSky('#171530', '#6d28d9', '#ea580c');
+        ctx.fillStyle = '#7c2d12';
+        ctx.fillRect(0, 260, W, 80);
+
+        // Symmetrical Volcano
+        ctx.fillStyle = '#c2410c';
+        ctx.beginPath();
+        ctx.moveTo(140, 265);
+        ctx.lineTo(310, 88);
+        ctx.lineTo(370, 88);
+        ctx.lineTo(540, 265);
+        ctx.closePath();
+        ctx.fill();
+
+        // Frozen blue-white lava/ice channels
+        ctx.strokeStyle = '#7dd3fc';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(315, 115);
+        ctx.quadraticCurveTo(260, 185, 200, 260);
+        ctx.moveTo(365, 115);
+        ctx.quadraticCurveTo(420, 185, 480, 260);
+        ctx.stroke();
+
+        // Seismic Marsquake rings at bottom right
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2.5;
+        [16, 30, 44].forEach(r => {
+          ctx.beginPath();
+          ctx.arc(575, 290, r, Math.PI, Math.PI * 2);
+          ctx.stroke();
+        });
+
+        drawTag('Elysium Mons (13.9 km) & InSight Marsquakes!', 340, 32, 'rgba(24,20,16,0.92)', '#fbbf24', '#fef3c7');
+      } else if (placeId === 'syrtis-major') {
+        drawMarsSky('#090d16', '#1e1b4b', '#312e81');
+        // Mars globe on right with dark triangle Syrtis Major
+        ctx.fillStyle = '#ea580c';
+        ctx.beginPath();
+        ctx.arc(475, 182, 108, 0, Math.PI * 2);
+        ctx.fill();
+        // Dark basaltic triangle
+        ctx.fillStyle = '#291d1e';
+        ctx.beginPath();
+        ctx.moveTo(475, 112);
+        ctx.lineTo(425, 222);
+        ctx.lineTo(525, 212);
+        ctx.closePath();
+        ctx.fill();
+
+        // Brass telescope on left
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 14;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(95, 245);
+        ctx.lineTo(255, 175);
+        ctx.stroke();
+        // Tripod
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(175, 212);
+        ctx.lineTo(135, 310);
+        ctx.moveTo(175, 212);
+        ctx.lineTo(215, 310);
+        ctx.stroke();
+
+        drawTag('1659 Telescope Discovery: 1 Mars Day = 24h 37m!', 340, 32, 'rgba(22,18,38,0.92)', '#a78bfa', '#ede9fe');
+      } else if (placeId === 'cydonia-mensae') {
+        // Fun Split-Screen: 1976 Shadow Illusion vs 2006 Real Mesa
+        ctx.fillStyle = '#1e1b2e';
+        ctx.fillRect(0, 0, W / 2, H);
+        ctx.fillStyle = '#2c1810';
+        ctx.fillRect(W / 2, 0, W / 2, H);
+
+        // Divider line
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(W / 2, 0);
+        ctx.lineTo(W / 2, H);
+        ctx.stroke();
+
+        // Left: Shadow illusion face
+        ctx.fillStyle = '#9a3412';
+        ctx.beginPath();
+        ctx.ellipse(170, 185, 78, 95, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1c1917';
+        ctx.beginPath();
+        ctx.ellipse(142, 160, 16, 11, 0, 0, Math.PI * 2);
+        ctx.ellipse(198, 160, 16, 11, 0, 0, Math.PI * 2);
+        ctx.fillRect(164, 168, 12, 34);
+        ctx.fillRect(144, 222, 52, 12);
+        ctx.fill();
+        drawTag('1976: Shadow Trick!', 170, 38, 'rgba(20,16,32,0.92)', '#c084fc', '#f3e8ff');
+
+        // Right: Real sunlit flat-topped rocky mesa
+        ctx.fillStyle = '#ea580c';
+        ctx.beginPath();
+        ctx.moveTo(405, 255);
+        ctx.lineTo(455, 132);
+        ctx.lineTo(565, 132);
+        ctx.lineTo(615, 255);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#fdba74';
+        ctx.beginPath();
+        ctx.ellipse(510, 132, 55, 12, 0, 0, Math.PI * 2);
+        ctx.fill();
+        drawTag('2006: Real Rocky Mesa!', 510, 38, 'rgba(20,28,22,0.92)', '#34d399', '#a7f3d0');
+      } else if (placeId === 'planum-boreum') {
+        drawMarsSky('#090d1a', '#1e293b', '#0f172a');
+        // Cinnamon-roll spiral North Polar Ice Cap
+        ctx.fillStyle = '#b45309';
+        ctx.beginPath();
+        ctx.arc(340, 178, 125, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#f0f9ff';
+        ctx.beginPath();
+        ctx.arc(340, 178, 110, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Spiral dark troughs
+        ctx.strokeStyle = '#9a3412';
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        for (let a = 0; a < Math.PI * 5.5; a += 0.12) {
+          const r = a * 5.8;
+          const x = 340 + Math.cos(a) * r;
+          const y = 178 + Math.sin(a) * r;
+          if (a === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        drawTag('Planum Boreum: Giant Spiral Water-Ice Cap!', 340, 30, 'rgba(12,24,38,0.92)', '#7dd3fc', '#e0f2fe');
+      } else if (placeId === 'planum-australe') {
+        drawMarsSky('#0b1120', '#1e3a8a', '#38bdf8');
+        // White snowy south polar surface
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(0, 185, W, 155);
+
+        // "Swiss-Cheese" dry-ice pits
+        ctx.fillStyle = '#bae6fd';
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 3;
+        [[145, 245, 38, 16], [285, 275, 48, 20], [525, 250, 42, 18]].forEach(([x, y, rx, ry]) => {
+          ctx.beginPath();
+          ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
+
+        // Spring CO2 geyser shooting dark dust fan
+        ctx.fillStyle = 'rgba(30, 27, 24, 0.78)';
+        ctx.beginPath();
+        ctx.moveTo(410, 245);
+        ctx.lineTo(365, 115);
+        ctx.lineTo(455, 115);
+        ctx.closePath();
+        ctx.fill();
+
+        drawTag('South Pole: "Swiss-Cheese" Ice & CO₂ Geysers!', 340, 32, 'rgba(12,24,42,0.92)', '#60a5fa', '#dbeafe');
+      }
+    }
+
+    // Annotated NASA MRO / MOLA Radar Scan Fallback if Wikimedia Photo is offline/blocked
+    function drawNasaRadarFallback(place) {
+      const c = document.getElementById('kid-illustration-canvas');
+      if (!c) return;
+      const ctx = c.getContext('2d');
+      const W = c.width;
+      const H = c.height;
+
+      ctx.fillStyle = '#070b14';
+      ctx.fillRect(0, 0, W, H);
+
+      // Radar grid
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.16)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 34) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      }
+      for (let y = 0; y < H; y += 34) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+
+      // Topographic elevation contour rings
+      const cx = W * 0.5;
+      const cy = H * 0.52;
+      [130, 102, 74, 46, 22].forEach((r, idx) => {
+        ctx.strokeStyle = idx % 2 === 0 ? '#f59e0b' : '#38bdf8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, r * 1.45, r * 0.85, 0.15, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+
+      // Crosshair
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - 165, cy); ctx.lineTo(cx + 165, cy);
+      ctx.moveTo(cx, cy - 110); ctx.lineTo(cx, cy + 110);
+      ctx.stroke();
+
+      ctx.fillStyle = '#e0f2fe';
+      ctx.font = 'bold 16px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`MOLA ORBITAL RADAR SCAN: ${place.name.toUpperCase()}`, cx, 32);
+      ctx.font = '13px JetBrains Mono, monospace';
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText(`${formatLatLon(place.lat, place.lon)}  |  ELEV: ${place.elevation}`, cx, H - 22);
+    }
+
+    // Switch between Tab 1 ('Kid Illustration') and Tab 2 ('NASA Space Photo')
+    const picTabKid = document.getElementById('pic-tab-kid');
+    const picTabNasa = document.getElementById('pic-tab-nasa');
+    const nasaPhotoWrapper = document.getElementById('nasa-photo-wrapper');
+    const nasaPhotoImg = document.getElementById('nasa-space-photo');
+    const nasaPhotoLoading = document.getElementById('nasa-photo-loading');
+
+    function setPictureTab(tab, place) {
+      activePictureTab = tab;
+      const isKid = tab === 'kid';
+
+      picTabKid.classList.toggle('bg-[#e87d0d]', isKid);
+      picTabKid.classList.toggle('text-white', isKid);
+      picTabKid.classList.toggle('shadow-sm', isKid);
+      picTabKid.classList.toggle('text-neutral-300', !isKid);
+
+      picTabNasa.classList.toggle('bg-[#4772b3]', !isKid);
+      picTabNasa.classList.toggle('text-white', !isKid);
+      picTabNasa.classList.toggle('shadow-sm', !isKid);
+      picTabNasa.classList.toggle('text-neutral-300', isKid);
+
+      if (!place) return;
+
+      if (isKid) {
+        nasaPhotoWrapper.classList.add('hidden');
+        drawKidIllustration(place.id);
+      } else {
+        nasaPhotoWrapper.classList.remove('hidden');
+        nasaPhotoLoading.classList.remove('hidden');
+        document.getElementById('nasa-caption-text').textContent = place.nasaCredit;
+
+        const wikiUrl = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(place.nasaFile)}?width=720`;
+        nasaPhotoImg.onload = () => {
+          nasaPhotoLoading.classList.add('hidden');
+        };
+        nasaPhotoImg.onerror = () => {
+          nasaPhotoWrapper.classList.add('hidden');
+          drawNasaRadarFallback(place);
+        };
+        nasaPhotoImg.src = wikiUrl;
+      }
+    }
+
+    picTabKid.addEventListener('click', () => {
+      const place = FAMOUS_PLACES.find(p => p.id === selectedPlaceId);
+      if (place) setPictureTab('kid', place);
+    });
+    picTabNasa.addEventListener('click', () => {
+      const place = FAMOUS_PLACES.find(p => p.id === selectedPlaceId);
+      if (place) setPictureTab('nasa', place);
+    });
+
+    // Audio Read-Aloud Narration (window.speechSynthesis)
+    const btnListen = document.getElementById('btn-listen-audio');
+    const listenIcon = document.getElementById('listen-icon');
+    const listenLabel = document.getElementById('listen-label');
+    let isSpeaking = false;
+
+    function stopSpeech() {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      isSpeaking = false;
+      listenIcon.textContent = '🔊';
+      listenLabel.textContent = 'Listen';
+      btnListen.classList.remove('bg-rose-500/25', 'border-rose-400/50', 'text-rose-200');
+      btnListen.classList.add('bg-sky-500/20', 'border-sky-400/40', 'text-sky-200');
+    }
+
+    // Never let narration outlive the region/card it belongs to.
+    // Stop on tab switch, page navigation, or when the browser hides this page.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopSpeech();
+    });
+    window.addEventListener('pagehide', stopSpeech);
+    window.addEventListener('beforeunload', stopSpeech);
+    window.addEventListener('hashchange', stopSpeech);
+    window.addEventListener('popstate', stopSpeech);
+    window.addEventListener('blur', stopSpeech);
+
+    // The inspector is the region/card that owns this narration. Observe its
+    // visibility rather than relying only on specific close buttons: this also
+    // covers keyboard shortcuts, global-view controls, and future UI changes.
+    const speechRegion = document.getElementById('landmark-inspector');
+    if (speechRegion && typeof MutationObserver !== 'undefined') {
+      const speechRegionObserver = new MutationObserver(() => {
+        if (speechRegion.classList.contains('hidden')) stopSpeech();
+      });
+      speechRegionObserver.observe(speechRegion, { attributes: true, attributeFilter: ['class', 'hidden', 'style'] });
+    }
+
+    btnListen.addEventListener('click', () => {
+      if (!('speechSynthesis' in window)) {
+        showToast('Audio read-aloud is not supported in this browser.');
+        return;
+      }
+      if (isSpeaking) {
+        stopSpeech();
+        return;
+      }
+      const place = FAMOUS_PLACES.find(p => p.id === selectedPlaceId);
+      if (!place) return;
+
+      stopSpeech();
+      const script = `${place.name}, also known as ${place.nickname}. ${place.kidStory1} ${place.kidStory2} Did you know? ${place.funFact}`;
+      const utter = new SpeechSynthesisUtterance(script);
+      utter.rate = 0.96;
+      utter.pitch = 1.06;
+      utter.onend = stopSpeech;
+      utter.onerror = stopSpeech;
+
+      isSpeaking = true;
+      listenIcon.textContent = '⏹';
+      listenLabel.textContent = 'Stop';
+      btnListen.classList.remove('bg-sky-500/20', 'border-sky-400/40', 'text-sky-200');
+      btnListen.classList.add('bg-rose-500/25', 'border-rose-400/50', 'text-rose-200');
+      window.speechSynthesis.speak(utter);
+    });
+
+    function initLandmarkPins() {
+      landmarksLayer.innerHTML = '';
+      pinElements.length = 0;
+
+      FAMOUS_PLACES.forEach(place => {
+        const el = document.createElement('div');
+        el.className = 'landmark-pin flex items-center gap-2';
+        el.dataset.id = place.id;
+        el.innerHTML = `
+          <div class="relative flex items-center justify-center w-4 h-4">
+            <span class="pin-pulse absolute w-3.5 h-3.5 rounded-full" style="background:${place.color}"></span>
+            <span class="pin-core w-2.5 h-2.5 rounded-full border border-white shadow transition-transform" style="background:${place.color}"></span>
+          </div>
+          <div class="pin-card px-2 py-0.5 rounded-md bg-[#14161c]/88 backdrop-blur-md border border-white/15 shadow-lg whitespace-nowrap transition-all">
+            <div class="text-[11px] font-semibold text-white leading-tight flex items-center gap-1">
+              <span>${place.emoji}</span>
+              <span>${place.name}</span>
+            </div>
+            <div class="text-[9px] font-mono-tech text-neutral-400 leading-tight">${place.elevation}</div>
+          </div>
+        `;
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectFamousPlace(place.id, true);
+        });
+        landmarksLayer.appendChild(el);
+        pinElements.push({ data: place, el });
+      });
+    }
+    initLandmarkPins();
+
+    function renderOutlinerList() {
+      const q = outlinerSearchQuery.trim().toLowerCase();
+      const filtered = FAMOUS_PLACES.filter(p => {
+        const catMatch = activeCategory === 'all' || p.category === activeCategory;
+        const textMatch = !q ||
+          p.name.toLowerCase().includes(q) ||
+          p.nickname.toLowerCase().includes(q) ||
+          p.type.toLowerCase().includes(q);
+        return catMatch && textMatch;
+      });
+
+      outlinerListEl.innerHTML = filtered.map(place => {
+        const isSel = place.id === selectedPlaceId;
+        const isVisited = visitedPlaceIds.has(place.id);
+        return `
+          <button data-place-id="${place.id}" class="outliner-item w-full px-2 py-1.5 rounded-md flex items-center justify-between gap-1.5 text-left transition-all ${
+            isSel
+              ? 'bg-[#e87d0d]/25 border border-[#e87d0d]/60 text-white'
+              : 'bg-[#18191e] hover:bg-white/5 border border-transparent text-neutral-300'
+          }">
+            <span class="flex items-center gap-1.5 min-w-0">
+              <span class="text-xs shrink-0">${place.emoji}</span>
+              <span class="text-xs font-medium truncate">${place.name}</span>
+            </span>
+            <span class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[10px] font-mono-tech text-neutral-400">${place.elevation}</span>
+              <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                isVisited
+                  ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/50'
+                  : 'bg-white/5 text-neutral-600 border border-white/10'
+              }" title="${isVisited ? 'Stamp Collected!' : 'Not visited yet'}">
+                ${isVisited ? '✓' : '·'}
+              </span>
+            </span>
+          </button>
+        `;
+      }).join('');
+
+      outlinerListEl.querySelectorAll('.outliner-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+          selectFamousPlace(btn.dataset.placeId, true);
+        });
+      });
+    }
+    renderOutlinerList();
+
+    // Update Pin Visual Selection Ring
+    function syncSelectedPinHighlight() {
+      pinElements.forEach(({ data, el }) => {
+        const isSel = data.id === selectedPlaceId;
+        el.classList.toggle('selected', isSel);
+        const card = el.querySelector('.pin-card');
+        const core = el.querySelector('.pin-core');
+        if (isSel) {
+          card.classList.add('border-[#e87d0d]', 'bg-[#1c1814]/95', 'ring-1', 'ring-[#e87d0d]/60');
+          core.style.transform = 'scale(1.35)';
+        } else {
+          card.classList.remove('border-[#e87d0d]', 'bg-[#1c1814]/95', 'ring-1', 'ring-[#e87d0d]/60');
+          core.style.transform = 'scale(1)';
+        }
+      });
+    }
+
+    // Open & Populate the Kid-Friendly & Pro 'Mars Explorer Card'
+    const inspectorEl = document.getElementById('landmark-inspector');
+    function openLandmarkInspector(place) {
+      stopSpeech();
+
+      // Award Explorer Stamp
+      const wasNew = !visitedPlaceIds.has(place.id);
+      visitedPlaceIds.add(place.id);
+      updatePassportUI();
+      if (wasNew && visitedPlaceIds.size === FAMOUS_PLACES.length) {
+        showToast('🏆 CONGRATS! All 12 Mars Explorer Stamps Collected!');
+      } else if (wasNew) {
+        showToast(`🏅 Explorer Stamp Earned: ${place.name} (${visitedPlaceIds.size}/12)`);
+      }
+
+      document.getElementById('insp-accent-bar').style.background = place.color;
+      document.getElementById('insp-badge').textContent = `${place.emoji} ${place.type}`;
+      document.getElementById('insp-index').textContent = `Stop ${place.index + 1} of ${FAMOUS_PLACES.length}`;
+      document.getElementById('insp-title').textContent = place.name;
+      document.getElementById('insp-subtitle').textContent = `"${place.nickname}" — ${place.subtitle}`;
+
+      // Re-trigger stamp pop animation
+      const stampPill = document.getElementById('insp-stamp-pill');
+      stampPill.classList.remove('stamp-pop');
+      void stampPill.offsetWidth;
+      stampPill.classList.add('stamp-pop');
+
+      // Dual Picture Viewer (defaults to Kid Illustration in Kid Mode, NASA Photo in Pro Mode)
+      setPictureTab(experienceMode === 'kid' ? 'kid' : 'nasa', place);
+
+      // Kid Story & Fun Size Comparison
+      document.getElementById('insp-kid-story-1').textContent = place.kidStory1;
+      document.getElementById('insp-kid-story-2').textContent = place.kidStory2;
+      document.getElementById('insp-scale-badge').textContent = place.scaleBadge;
+      document.getElementById('comp-earth-label').textContent = place.compEarthLabel;
+      document.getElementById('comp-earth-val').textContent = `${place.compEarthPct}%`;
+      document.getElementById('comp-earth-bar').style.width = `${place.compEarthPct}%`;
+      document.getElementById('comp-mars-label').textContent = place.compMarsLabel;
+      document.getElementById('comp-mars-val').textContent = `${place.compMarsPct}%`;
+      document.getElementById('comp-mars-bar').style.width = `${place.compMarsPct}%`;
+
+      // Did You Know? Fun Fact
+      document.getElementById('insp-fun-fact').textContent = place.funFact;
+
+      // Mini Quiz
+      const qBadge = document.getElementById('quiz-status-badge');
+      const qFeedback = document.getElementById('quiz-feedback');
+      const qOptionsEl = document.getElementById('quiz-options');
+      const alreadySolved = solvedQuizIds.has(place.id);
+
+      qBadge.textContent = alreadySolved ? '⭐ Solved!' : 'Pick an answer!';
+      qBadge.className = alreadySolved
+        ? 'text-[10px] font-mono-tech font-semibold text-emerald-300'
+        : 'text-[10px] font-mono-tech text-neutral-400';
+      qFeedback.classList.add('hidden');
+      document.getElementById('quiz-question').textContent = place.quiz.question;
+
+      const letters = ['A', 'B', 'C'];
+      qOptionsEl.innerHTML = place.quiz.options.map((opt, idx) => `
+        <button data-opt-idx="${idx}" class="quiz-opt-btn w-full px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-indigo-500/25 border border-white/10 hover:border-indigo-400/50 text-left text-[11px] text-neutral-200 flex items-center gap-2 transition-all">
+          <span class="w-4 h-4 rounded bg-indigo-500/25 text-indigo-200 font-mono-tech font-bold text-[10px] flex items-center justify-center shrink-0">${letters[idx]}</span>
+          <span>${opt}</span>
+        </button>
+      `).join('');
+
+      qOptionsEl.querySelectorAll('.quiz-opt-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const chosen = parseInt(btn.dataset.optIdx, 10);
+          const isCorrect = chosen === place.quiz.correctIndex;
+          qFeedback.classList.remove('hidden', 'bg-emerald-500/20', 'text-emerald-200', 'border-emerald-400/40', 'bg-amber-500/20', 'text-amber-200', 'border-amber-400/40');
+          qFeedback.classList.add('border');
+
+          if (isCorrect) {
+            solvedQuizIds.add(place.id);
+            qBadge.textContent = '⭐ Solved!';
+            qBadge.className = 'text-[10px] font-mono-tech font-semibold text-emerald-300';
+            btn.classList.add('bg-emerald-500/25', 'border-emerald-400/60', 'text-white');
+            qFeedback.classList.add('bg-emerald-500/20', 'text-emerald-200', 'border-emerald-400/40');
+            qFeedback.textContent = `🎉 ${place.quiz.explanation}`;
+          } else {
+            btn.classList.add('bg-rose-500/20', 'border-rose-400/50');
+            qFeedback.classList.add('bg-amber-500/20', 'text-amber-200', 'border-amber-400/40');
+            qFeedback.textContent = '🤔 Not quite! Read the story above and try another answer!';
+          }
+        });
+      });
+
+      // Scientist Telemetry
+      document.getElementById('insp-coords').textContent = formatLatLon(place.lat, place.lon);
+      document.getElementById('insp-elevation').textContent = place.elevation;
+      document.getElementById('insp-size').textContent = place.size;
+      document.getElementById('insp-mission').textContent = place.mission;
+      document.getElementById('insp-facts').innerHTML = place.facts.map(f => `
+        <li class="flex items-start gap-1.5">
+          <span class="text-[#e87d0d] font-bold mt-0.5">•</span>
+          <span>${f}</span>
+        </li>
+      `).join('');
+
+      document.getElementById('scientist-telemetry-details').open = (experienceMode === 'pro');
+      document.getElementById('insp-scroll-body').scrollTop = 0;
+
+      // Single-slot left drawer: hide Places Outliner while Explorer Card is open so panels never double-stack
+      if (leftOutlinerOpen) {
+        toggleLeftOutliner(false, true);
+      }
+      inspectorEl.classList.remove('hidden');
+      syncPanelHeaderButtons();
+    }
+
+    function selectFamousPlace(id, flyCamera = true) {
+      const place = FAMOUS_PLACES.find(p => p.id === id);
+      if (!place) return;
+
+      if (selectedPlaceId !== id) stopSpeech();
+      selectedPlaceId = id;
+      openLandmarkInspector(place);
+      syncSelectedPinHighlight();
+      renderOutlinerList();
+
+      if (flyCamera) {
+        if (state.autoRotate) {
+          state.autoRotate = false;
+          updateRotateButtonUI();
+        }
+
+        marsSpinGroup.updateMatrixWorld(true);
+        const worldDir = place.unitPos.clone().applyMatrix4(marsSpinGroup.matrixWorld).normalize();
+        const endPos = worldDir.clone().multiplyScalar(place.camDist);
+
+        // Ensure bright solar illumination on the selected landmark
+        const currentSunDir = sunLight.position.clone().normalize();
+        if (currentSunDir.dot(worldDir) < 0.28) {
+          const rakingDir = worldDir.clone()
+            .add(new THREE.Vector3(-worldDir.z, 0.35, worldDir.x).normalize().multiplyScalar(0.72))
+            .normalize();
+          const newEl = THREE.MathUtils.radToDeg(Math.asin(Math.max(-1, Math.min(1, rakingDir.y))));
+          const newAz = THREE.MathUtils.radToDeg(Math.atan2(rakingDir.x, rakingDir.z));
+          state.sunAzimuth = Math.round(newAz);
+          state.sunElevation = Math.round(newEl);
+          document.getElementById('slider-sun-az').value = state.sunAzimuth;
+          document.getElementById('val-sun-az').textContent = `${state.sunAzimuth}°`;
+          document.getElementById('slider-sun-el').value = state.sunElevation;
+          document.getElementById('val-sun-el').textContent = `${state.sunElevation}°`;
+          updateSunPosition();
+        }
+
+        cameraFlyAnim = {
+          startPos: camera.position.clone(),
+          endPos,
+          startTarget: controls.target.clone(),
+          endTarget: new THREE.Vector3(0, 0, 0),
+          progress: 0
+        };
+      }
+    }
+
+    // Inspector Tour Buttons
+    document.getElementById('btn-close-inspector').addEventListener('click', () => {
+      stopSpeech();
+      inspectorEl.classList.add('hidden');
+      selectedPlaceId = null;
+      syncSelectedPinHighlight();
+      renderOutlinerList();
+      syncPanelHeaderButtons();
+    });
+
+    document.getElementById('btn-back-to-places').addEventListener('click', () => {
+      stopSpeech();
+      inspectorEl.classList.add('hidden');
+      selectedPlaceId = null;
+      syncSelectedPinHighlight();
+      renderOutlinerList();
+      toggleLeftOutliner(true);
+    });
+
+    document.getElementById('btn-prev-landmark').addEventListener('click', () => {
+      const idx = FAMOUS_PLACES.findIndex(p => p.id === selectedPlaceId);
+      const prev = FAMOUS_PLACES[(idx - 1 + FAMOUS_PLACES.length) % FAMOUS_PLACES.length];
+      selectFamousPlace(prev.id, true);
+    });
+
+    document.getElementById('btn-next-landmark').addEventListener('click', () => {
+      const idx = FAMOUS_PLACES.findIndex(p => p.id === selectedPlaceId);
+      const next = FAMOUS_PLACES[(idx + 1) % FAMOUS_PLACES.length];
+      selectFamousPlace(next.id, true);
+    });
+
+    document.getElementById('btn-global-view').addEventListener('click', () => {
+      stopSpeech();
+      cameraFlyAnim = {
+        startPos: camera.position.clone(),
+        endPos: new THREE.Vector3(0.4, 2.3, 6.2),
+        startTarget: controls.target.clone(),
+        endTarget: new THREE.Vector3(0, 0, 0),
+        progress: 0
+      };
+      showToast('Camera: Global Planetary View');
+    });
+
+    // Category Filter Pills
+    document.querySelectorAll('.cat-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeCategory = btn.dataset.category;
+        document.querySelectorAll('.cat-pill').forEach(p => {
+          const active = p.dataset.category === activeCategory;
+          p.classList.toggle('border-[#e87d0d]', active);
+          p.classList.toggle('bg-[#e87d0d]/25', active);
+          p.classList.toggle('text-white', active);
+          p.classList.toggle('text-neutral-300', !active);
+        });
+        renderOutlinerList();
+      });
+    });
+
+    // Outliner Search
+    document.getElementById('outliner-search').addEventListener('input', (e) => {
+      outlinerSearchQuery = e.target.value;
+      renderOutlinerList();
+    });
+
+    // Kid Explorer vs Pro Studio Mode Toggle
+    const modeKidBtn = document.getElementById('mode-kid-btn');
+    const modeProBtn = document.getElementById('mode-pro-btn');
+
+    function setExperienceMode(mode) {
+      experienceMode = mode;
+      const isKid = mode === 'kid';
+
+      modeKidBtn.classList.toggle('bg-gradient-to-r', isKid);
+      modeKidBtn.classList.toggle('from-amber-500', isKid);
+      modeKidBtn.classList.toggle('to-orange-500', isKid);
+      modeKidBtn.classList.toggle('text-white', isKid);
+      modeKidBtn.classList.toggle('shadow-sm', isKid);
+      modeKidBtn.classList.toggle('text-neutral-300', !isKid);
+
+      modeProBtn.classList.toggle('bg-[#4772b3]', !isKid);
+      modeProBtn.classList.toggle('text-white', !isKid);
+      modeProBtn.classList.toggle('shadow-sm', !isKid);
+      modeProBtn.classList.toggle('text-neutral-300', isKid);
+
+      const currentPlace = FAMOUS_PLACES.find(p => p.id === selectedPlaceId);
+      if (currentPlace) {
+        setPictureTab(isKid ? 'kid' : 'nasa', currentPlace);
+        document.getElementById('scientist-telemetry-details').open = !isKid;
+      }
+      showToast(isKid ? '🚀 Kid Explorer Mode: Colorful Illustrations & Stories' : '🛰️ Pro Studio Mode: NASA Spacecraft Photos & Telemetry');
+    }
+
+    modeKidBtn.addEventListener('click', () => setExperienceMode('kid'));
+    modeProBtn.addEventListener('click', () => setExperienceMode('pro'));
+
+    // Project 3D Displaced Surface Pins onto Screen with Horizon Occlusion Check
+    const tempWorldPos = new THREE.Vector3();
+    const tempPlanetCenter = new THREE.Vector3();
+    const tempNormal = new THREE.Vector3();
+    const tempToCam = new THREE.Vector3();
+
+    function updateLandmarkPins() {
+      if (!pinsVisible) {
+        landmarksLayer.style.display = 'none';
+        return;
+      }
+      landmarksLayer.style.display = 'block';
+
+      marsSpinGroup.getWorldPosition(tempPlanetCenter);
+      const widthHalf = window.innerWidth * 0.5;
+      const heightHalf = window.innerHeight * 0.5;
+      const dispScale = state.reliefExaggeration * BASE_DISPLACEMENT_SCALE;
+      const dispBias = -dispScale * 0.48;
+
+      for (const item of pinElements) {
+        const place = item.data;
+        const catAllowed = activeCategory === 'all' || place.category === activeCategory || place.id === selectedPlaceId;
+        if (!catAllowed) {
+          item.el.classList.add('occluded');
+          continue;
+        }
+
+        // Pin sits directly on the displaced 3D surface elevation
+        const surfaceR = MARS_RADIUS_3D + place.surfaceHeight01 * dispScale + dispBias + 0.008;
+        tempWorldPos.copy(place.unitPos).multiplyScalar(surfaceR);
+        marsSpinGroup.localToWorld(tempWorldPos);
+
+        // Horizon dot-product occlusion test
+        tempNormal.subVectors(tempWorldPos, tempPlanetCenter).normalize();
+        tempToCam.subVectors(camera.position, tempWorldPos).normalize();
+        const facing = tempNormal.dot(tempToCam);
+
+        if (facing < 0.14) {
+          item.el.classList.add('occluded');
+          continue;
+        }
+
+        tempWorldPos.project(camera);
+        if (tempWorldPos.z > 1.0) {
+          item.el.classList.add('occluded');
+          continue;
+        }
+
+        item.el.classList.remove('occluded');
+        item.el.style.opacity = Math.min(1, (facing - 0.14) * 4.5).toFixed(2);
+        item.el.style.left = `${(tempWorldPos.x * widthHalf) + widthHalf}px`;
+        item.el.style.top = `${-(tempWorldPos.y * heightHalf) + heightHalf}px`;
+      }
+    }
+
+    // =========================================================================
+    // 8. STUDIO CONTROLS, RAYCASTING (LAT/LON + MEASURE), SHADING & EXPORT
+    // =========================================================================
+    const motionPreference = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    const prefersReducedMotion = !!(motionPreference && motionPreference.matches);
+    const state = {
+      shadingMode: 'rendered',
+      toolMode: 'inspect', // 'inspect' | 'measure'
+      autoRotate: !prefersReducedMotion,
+      rotSpeed: 0.35,
+      sunAzimuth: 42,
+      sunElevation: 18,
+      reliefExaggeration: 1.0,
+      normalRelief: 1.45,
+      polarIce: 0.55,
+      axialTilt: 25.19,
+      fov: 42
+    };
+
+    function showToast(msg) {
+      const banner = document.getElementById('toast-banner');
+      const text = document.getElementById('toast-message');
+      text.textContent = msg;
+      banner.classList.remove('opacity-0', '-translate-y-2');
+      banner.classList.add('opacity-100', 'translate-y-0');
+      clearTimeout(showToast._timer);
+      showToast._timer = setTimeout(() => {
+        banner.classList.add('opacity-0', '-translate-y-2');
+        banner.classList.remove('opacity-100', 'translate-y-0');
+      }, 2500);
+    }
+
+    const btnToggleRotate = document.getElementById('btn-toggle-rotate');
+    function updateRotateButtonUI() {
+      btnToggleRotate.classList.toggle('bg-[#4772b3]/30', state.autoRotate);
+      btnToggleRotate.classList.toggle('text-blue-200', state.autoRotate);
+      btnToggleRotate.classList.toggle('border-[#4772b3]/50', state.autoRotate);
+      btnToggleRotate.classList.toggle('text-neutral-300', !state.autoRotate);
+      btnToggleRotate.setAttribute('aria-pressed', String(state.autoRotate));
+    }
+    updateRotateButtonUI();
+    if (motionPreference) {
+      const pauseForReducedMotion = event => {
+        if (event.matches && state.autoRotate) {
+          state.autoRotate = false;
+          updateRotateButtonUI();
+        }
+      };
+      if (motionPreference.addEventListener) motionPreference.addEventListener('change', pauseForReducedMotion);
+      else if (motionPreference.addListener) motionPreference.addListener(pauseForReducedMotion);
+    }
+    btnToggleRotate.addEventListener('click', () => {
+      state.autoRotate = !state.autoRotate;
+      updateRotateButtonUI();
+      showToast(state.autoRotate ? 'Mars Rotation: ON' : 'Mars Rotation: PAUSED');
+    });
+
+    function updateSunPosition() {
+      const az = THREE.MathUtils.degToRad(state.sunAzimuth);
+      const el = THREE.MathUtils.degToRad(state.sunElevation);
+      const dist = 25.0;
+      const x = dist * Math.cos(el) * Math.sin(az);
+      const y = dist * Math.sin(el);
+      const z = dist * Math.cos(el) * Math.cos(az);
+
+      sunLight.position.set(x, y, z);
+      atmoMaterial.uniforms.uSunDir.value.set(x, y, z).normalize();
+    }
+    updateSunPosition();
+
+    // Shading Mode Switcher
+    const molaLegend = document.getElementById('mola-legend');
+    function setShadingMode(mode) {
+      state.shadingMode = mode;
+      document.querySelectorAll('.shading-btn').forEach(btn => {
+        const isActive = btn.dataset.shading === mode;
+        btn.classList.toggle('bg-[#e87d0d]', isActive);
+        btn.classList.toggle('text-white', isActive);
+        btn.classList.toggle('shadow-sm', isActive);
+        btn.classList.toggle('text-neutral-300', !isActive);
+      });
+
+      molaLegend.classList.toggle('hidden', mode !== 'elevation');
+
+      if (mode === 'rendered') {
+        marsMesh.material = marsPBRMaterial;
+        cloudMesh.visible = document.getElementById('chk-clouds').checked;
+        atmoMesh.visible = document.getElementById('chk-atmosphere').checked;
+      } else if (mode === 'clay') {
+        marsMesh.material = marsClayMaterial;
+        cloudMesh.visible = false;
+        atmoMesh.visible = false;
+      } else if (mode === 'wireframe') {
+        marsMesh.material = marsWireMaterial;
+        cloudMesh.visible = false;
+        atmoMesh.visible = false;
+      } else if (mode === 'elevation') {
+        marsMesh.material = marsElevationMaterial;
+        cloudMesh.visible = false;
+        atmoMesh.visible = false;
+      }
+      showToast(`Viewport Shading: ${mode.toUpperCase()}`);
+    }
+
+    document.querySelectorAll('.shading-btn').forEach(btn => {
+      btn.addEventListener('click', () => setShadingMode(btn.dataset.shading));
+    });
+
+    // Tool Mode Switcher (Inspect vs Measure Distance)
+    const toolMeasureBtn = document.getElementById('tool-measure');
+    const statusToolHint = document.getElementById('status-tool-hint');
+
+    function setToolMode(mode) {
+      state.toolMode = mode;
+      const isMeasure = mode === 'measure';
+
+      toolMeasureBtn.classList.toggle('bg-cyan-600', isMeasure);
+      toolMeasureBtn.classList.toggle('text-white', isMeasure);
+      toolMeasureBtn.classList.toggle('text-neutral-300', !isMeasure);
+
+      canvas.style.cursor = isMeasure ? 'crosshair' : 'grab';
+      statusToolHint.textContent = isMeasure
+        ? 'Click two points on Mars to measure surface distance (km)'
+        : 'Click any glowing pin to explore & earn a stamp!';
+      showToast(isMeasure ? 'Tool: Geodesic Distance Measurement (km)' : 'Tool: Orbit & Landmark Explorer');
+    }
+
+    toolMeasureBtn.addEventListener('click', () => {
+      setToolMode(state.toolMode === 'measure' ? 'inspect' : 'measure');
+    });
+
+    // Quick Lat/Lon Grid Header Button (Synced with N-Panel Checkbox)
+    const btnToggleGrid = document.getElementById('btn-toggle-grid');
+    const chkGrid = document.getElementById('chk-grid');
+    function syncGridVisibility(visible) {
+      graticuleGroup.visible = visible;
+      chkGrid.checked = visible;
+      btnToggleGrid.classList.toggle('bg-amber-500/25', visible);
+      btnToggleGrid.classList.toggle('text-amber-200', visible);
+      btnToggleGrid.classList.toggle('border', visible);
+      btnToggleGrid.classList.toggle('border-amber-400/50', visible);
+    }
+    btnToggleGrid.addEventListener('click', () => {
+      syncGridVisibility(!graticuleGroup.visible);
+      showToast(graticuleGroup.visible ? 'Lat/Lon Coordinate Grid: ON' : 'Lat/Lon Coordinate Grid: OFF');
+    });
+
+    // Quick Camera View Presets in Right N-Panel
+    document.querySelectorAll('.cam-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const preset = btn.dataset.camPreset;
+        if (preset === 'phobos') {
+          const phobosWorld = new THREE.Vector3();
+          phobosMesh.getWorldPosition(phobosWorld);
+          const camDest = phobosWorld.clone().add(new THREE.Vector3(0.45, 0.3, 0.65));
+          cameraFlyAnim = {
+            startPos: camera.position.clone(),
+            endPos: camDest,
+            startTarget: controls.target.clone(),
+            endTarget: phobosWorld,
+            progress: 0
+          };
+          showToast('Camera: Moon Phobos Close-Up');
+          return;
+        }
+
+        let endPos = new THREE.Vector3(0.4, 2.3, 6.2);
+        if (preset === 'north') endPos = new THREE.Vector3(0.2, 5.4, 1.8);
+        else if (preset === 'south') endPos = new THREE.Vector3(-0.2, -5.4, 1.8);
+        else if (preset === 'volcanoes') {
+          marsSpinGroup.updateMatrixWorld(true);
+          endPos = OLYMPUS_DIR.clone().applyMatrix4(marsSpinGroup.matrixWorld).normalize().multiplyScalar(4.4);
+        } else if (preset === 'canyons') {
+          marsSpinGroup.updateMatrixWorld(true);
+          endPos = latLonToUnitVec(-13.9, -59.2).applyMatrix4(marsSpinGroup.matrixWorld).normalize().multiplyScalar(4.3);
+        }
+
+        cameraFlyAnim = {
+          startPos: camera.position.clone(),
+          endPos,
+          startTarget: controls.target.clone(),
+          endTarget: new THREE.Vector3(0, 0, 0),
+          progress: 0
+        };
+        showToast(`Camera Preset: ${btn.textContent.trim()}`);
+      });
+    });
+
+    // Raycasting for Cursor Lat/Lon Readout & Measurement Clicks
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const cursorTelemetryEl = document.getElementById('telemetry-cursor');
+    let pointerDownPos = { x: 0, y: 0 };
+
+    canvas.addEventListener('pointerdown', (e) => {
+      pointerDownPos = { x: e.clientX, y: e.clientY };
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+      pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObject(marsMesh, false);
+      if (hits.length > 0) {
+        const localPt = marsSpinGroup.worldToLocal(hits[0].point.clone());
+        const { lat, lon } = unitVecToLatLon(localPt);
+        cursorTelemetryEl.textContent = formatLatLon(lat, lon);
+      } else {
+        const distRadii = (camera.position.length() / MARS_RADIUS_3D).toFixed(2);
+        cursorTelemetryEl.textContent = `Dist: ${distRadii} R♂`;
+      }
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+      const moveDist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+      if (moveDist > 5 || state.toolMode !== 'measure') return;
+
+      pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+      pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObject(marsMesh, false);
+      if (hits.length > 0) {
+        const localPt = marsSpinGroup.worldToLocal(hits[0].point.clone());
+        handleMeasureClick(localPt);
+      }
+    });
+
+    // Bind N-Panel Sliders
+    function bindSlider(sliderId, valId, formatter, onChange) {
+      const slider = document.getElementById(sliderId);
+      const label = document.getElementById(valId);
+      slider.addEventListener('input', () => {
+        const num = parseFloat(slider.value);
+        label.textContent = formatter(num);
+        onChange(num);
+      });
+    }
+
+    bindSlider('slider-displacement', 'val-displacement', v => `${v.toFixed(2)}x`, v => {
+      state.reliefExaggeration = v;
+      const scale = v * BASE_DISPLACEMENT_SCALE;
+      const bias = -scale * 0.48;
+      marsPBRMaterial.displacementScale = scale;
+      marsPBRMaterial.displacementBias = bias;
+      marsClayMaterial.uniforms.uDisplacementScale.value = scale;
+      marsClayMaterial.uniforms.uDisplacementBias.value = bias;
+      marsElevationMaterial.uniforms.uDisplacementScale.value = scale;
+      marsElevationMaterial.uniforms.uDisplacementBias.value = bias;
+    });
+    // Left Outliner & Right N-Panel Collapse Toggles + Dynamic Viewport Framing
+    const leftOutliner = document.getElementById('left-outliner');
+    const nPanel = document.getElementById('n-panel');
+    const btnToggleOutliner = document.getElementById('btn-toggle-outliner');
+    const btnToggleNPanel = document.getElementById('btn-toggle-npanel');
+
+    let leftOutlinerOpen = false;
+    let nPanelOpen = false;
+    let currentViewOffsetX = 0;
+
+    function syncPanelHeaderButtons() {
+      const leftActive = leftOutlinerOpen || !inspectorEl.classList.contains('hidden');
+      btnToggleOutliner.classList.toggle('border-amber-400/60', leftActive);
+      btnToggleOutliner.classList.toggle('bg-amber-500/20', leftActive);
+      btnToggleOutliner.classList.toggle('text-white', leftActive);
+
+      btnToggleNPanel.classList.toggle('border-[#e87d0d]/70', nPanelOpen);
+      btnToggleNPanel.classList.toggle('bg-[#e87d0d]/20', nPanelOpen);
+      btnToggleNPanel.classList.toggle('text-white', nPanelOpen);
+
+      // Keep MOLA elevation legend clear of the right Controls panel
+      molaLegend.style.right = (nPanelOpen && window.innerWidth >= 768) ? '270px' : '10px';
+    }
+
+    function toggleLeftOutliner(forceState, skipInspectorClose = false) {
+      leftOutlinerOpen = typeof forceState === 'boolean' ? forceState : !leftOutlinerOpen;
+      leftOutliner.classList.toggle('-translate-x-[320px]', !leftOutlinerOpen);
+      if (leftOutlinerOpen && !skipInspectorClose && !inspectorEl.classList.contains('hidden')) {
+        stopSpeech();
+        inspectorEl.classList.add('hidden');
+        selectedPlaceId = null;
+        syncSelectedPinHighlight();
+        renderOutlinerList();
+      }
+      syncPanelHeaderButtons();
+    }
+
+    function toggleNPanel(forceState) {
+      nPanelOpen = typeof forceState === 'boolean' ? forceState : !nPanelOpen;
+      nPanel.classList.toggle('translate-x-[290px]', !nPanelOpen);
+      syncPanelHeaderButtons();
+    }
+
+    function closeAllPanels() {
+      stopSpeech();
+      inspectorEl.classList.add('hidden');
+      selectedPlaceId = null;
+      syncSelectedPinHighlight();
+      renderOutlinerList();
+      toggleLeftOutliner(false, true);
+      toggleNPanel(false);
+      showToast('Clean View: All panels tucked away');
+    }
+
+    // Automatically shifts the 3D camera frustum so Mars stays centered in the unobstructed area between open panels
+    function updateCameraViewportFraming(dt) {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      let leftBlocked = 0;
+      let rightBlocked = 0;
+
+      if (w >= 768) {
+        if (!inspectorEl.classList.contains('hidden')) {
+          leftBlocked = 372;
+        } else if (leftOutlinerOpen) {
+          leftBlocked = 298;
+        }
+        if (nPanelOpen) {
+          rightBlocked = 268;
+        }
+      }
+
+      const targetOffsetX = -(leftBlocked - rightBlocked) * 0.5;
+      const blend = 1 - Math.exp(-dt * 10);
+      currentViewOffsetX += (targetOffsetX - currentViewOffsetX) * blend;
+
+      if (Math.abs(currentViewOffsetX) > 0.25) {
+        camera.setViewOffset(w, h, currentViewOffsetX, 0, w, h);
+      } else {
+        currentViewOffsetX = 0;
+        camera.clearViewOffset();
+      }
+    }
+
+    btnToggleOutliner.addEventListener('click', () => toggleLeftOutliner());
+    document.getElementById('btn-close-outliner').addEventListener('click', () => toggleLeftOutliner(false));
+    btnToggleNPanel.addEventListener('click', () => toggleNPanel());
+    document.getElementById('btn-close-npanel').addEventListener('click', () => toggleNPanel(false));
+    document.getElementById('btn-clear-view').addEventListener('click', closeAllPanels);
+    syncPanelHeaderButtons();
+
+    // Accordion Section Collapsing
+    document.querySelectorAll('.accordion-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = document.getElementById(btn.dataset.target);
+        const chevron = btn.querySelector('svg:last-child');
+        const isHidden = target.classList.toggle('hidden');
+        chevron.style.transform = isHidden ? 'rotate(-90deg)' : 'rotate(0deg)';
+      });
+    });
+
+    // Reset All Parameters
+    document.getElementById('btn-reset-params').addEventListener('click', () => {
+      const defaults = {
+        'slider-displacement': 1.00,
+        'slider-normal': 1.45,
+        'slider-ice': 0.55,
+        'slider-rot-speed': 0.35,
+        'slider-sun-az': 42,
+        'slider-sun-el': 18,
+        'slider-tilt': 25.19,
+        'slider-fov': 42
+      };
+      for (const [id, val] of Object.entries(defaults)) {
+        const el = document.getElementById(id);
+        el.value = val;
+        el.dispatchEvent(new Event('input'));
+      }
+      clearMeasurement();
+      setToolMode('inspect');
+      setShadingMode('rendered');
+      cameraFlyAnim = {
+        startPos: camera.position.clone(),
+        endPos: new THREE.Vector3(0.4, 2.3, 6.2),
+        startTarget: controls.target.clone(),
+        endTarget: new THREE.Vector3(0, 0, 0),
+        progress: 0
+      };
+      showToast('Scene reset to default Martian baseline');
+    });
+
+    // Export .GLB Model for Blender
+    document.getElementById('btn-export-glb').addEventListener('click', () => {
+      showToast('Baking & exporting 2K .GLB model for Blender...');
+      const prevMat = marsMesh.material;
+      marsMesh.material = marsPBRMaterial;
+
+      const exporter = new GLTFExporter();
+      exporter.parse(
+        marsTiltGroup,
+        (result) => {
+          marsMesh.material = prevMat;
+          const blob = new Blob([result], { type: 'application/octet-stream' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'mars_3d_studio_2k.glb';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          showToast('Downloaded mars_3d_studio_2k.glb');
+        },
+        (error) => {
+          marsMesh.material = prevMat;
+          console.error('GLB Export Error:', error);
+          showToast('Export failed — check console');
+        },
+        { binary: true }
+      );
+    });
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === '1') setShadingMode('rendered');
+      else if (e.key === '2') setShadingMode('clay');
+      else if (e.key === '3') setShadingMode('wireframe');
+      else if (e.key === '4') setShadingMode('elevation');
+      else if (e.key.toLowerCase() === 'q') setToolMode('inspect');
+      else if (e.key.toLowerCase() === 'm') setToolMode(state.toolMode === 'measure' ? 'inspect' : 'measure');
+      else if (e.key.toLowerCase() === 'g') syncGridVisibility(!graticuleGroup.visible);
+      else if (e.key.toLowerCase() === 'o') toggleLeftOutliner();
+      else if (e.key.toLowerCase() === 'n') toggleNPanel();
+      else if (e.key.toLowerCase() === 'h') closeAllPanels();
+      else if (e.key === 'Escape') {
+        stopSpeech();
+        inspectorEl.classList.add('hidden');
+        selectedPlaceId = null;
+        syncSelectedPinHighlight();
+        renderOutlinerList();
+        syncPanelHeaderButtons();
+      } else if (e.code === 'Space') {
+        e.preventDefault();
+        state.autoRotate = !state.autoRotate;
+        updateRotateButtonUI();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      syncPanelHeaderButtons();
+    });
+
+    // =========================================================================
+    // 9. MAIN ANIMATION LOOP & TELEMETRY
+    // =========================================================================
+    const clock = new THREE.Clock();
+    let phobosAngle = 0.6;
+    let deimosAngle = 2.4;
+    if (prefersReducedMotion) {
+      phobosMesh.position.set(Math.cos(phobosAngle) * PHOBOS_ORBIT_R, 0, Math.sin(phobosAngle) * PHOBOS_ORBIT_R);
+      deimosMesh.position.set(Math.cos(deimosAngle) * DEIMOS_ORBIT_R, 0, Math.sin(deimosAngle) * DEIMOS_ORBIT_R);
+    }
+    let frameCount = 0;
+    let lastFpsTime = performance.now();
+    const fpsEl = document.getElementById('telemetry-fps');
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const dt = Math.min(clock.getDelta(), 0.05);
+      updateCameraViewportFraming(dt);
+
+      if (state.autoRotate) {
+        marsSpinGroup.rotation.y += dt * 0.16 * state.rotSpeed;
+        cloudMesh.rotation.y += dt * 0.045 * state.rotSpeed;
+      }
+
+      if (!(motionPreference && motionPreference.matches)) {
+        phobosAngle += dt * 0.45;
+        phobosMesh.position.set(
+          Math.cos(phobosAngle) * PHOBOS_ORBIT_R,
+          0,
+          Math.sin(phobosAngle) * PHOBOS_ORBIT_R
+        );
+        deimosAngle += dt * 0.18;
+        deimosMesh.position.set(
+          Math.cos(deimosAngle) * DEIMOS_ORBIT_R,
+          0,
+          Math.sin(deimosAngle) * DEIMOS_ORBIT_R
+        );
+      }
+      phobosMesh.rotation.y = -phobosAngle;
+      deimosMesh.rotation.y = -deimosAngle;
+
+      if (cameraFlyAnim) {
+        cameraFlyAnim.progress += dt * 1.45;
+        const t = Math.min(1, cameraFlyAnim.progress);
+        const ease = 1 - Math.pow(1 - t, 3);
+        camera.position.lerpVectors(cameraFlyAnim.startPos, cameraFlyAnim.endPos, ease);
+        controls.target.lerpVectors(cameraFlyAnim.startTarget, cameraFlyAnim.endTarget, ease);
+        if (t >= 1) {
+          cameraFlyAnim = null;
+        }
+      }
+
+      controls.update();
+      updateLandmarkPins();
+      updateMeasureBadgeScreenPos();
+      renderer.render(scene, camera);
+
+      frameCount++;
+      const now = performance.now();
+      if (now - lastFpsTime >= 500) {
+        const fps = Math.round((frameCount * 1000) / (now - lastFpsTime));
+        fpsEl.textContent = `${fps} FPS`;
+        frameCount = 0;
+        lastFpsTime = now;
+      }
+    }
+
+    window.addEventListener('load', () => {
+      const loader = document.getElementById('loader-overlay');
+      setTimeout(() => {
+        loader.classList.add('opacity-0', 'pointer-events-none');
+      }, 220);
+      animate();
+    });
+  </script>
+</body>
+</html>
