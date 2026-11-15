@@ -1,0 +1,22 @@
+-- Manual/integration test checklist; execute in a disposable Supabase project.
+-- This file intentionally contains no production user IDs or credentials.
+-- Use two synthetic authenticated users (A and B) and run API/RLS tests as each.
+
+-- 1) As anon: SELECT from profiles, mission_progress, star_ledger, purchases,
+--    inventory and user_roles must fail or return no accessible rows.
+-- 2) As authenticated user A: own profile/progress/ledger reads are allowed.
+-- 3) As authenticated user A: rows for user B remain invisible even when the
+--    query filters on B's UUID.
+-- 4) As authenticated user A: INSERT/UPDATE/DELETE on mission_progress,
+--    quiz_attempts, star_ledger, purchases, inventory, equipped_items and
+--    user_roles must be denied.
+-- 5) As authenticated user A: changing profile display fields is allowed, but
+--    changing id or any role is not.
+-- 6) Through the Edge Function: fake score/stars/price/user_id/role fields are
+--    rejected or ignored; server-derived values are returned.
+-- 7) Replay the same Idempotency-Key for completion and purchase; verify one
+--    attempt/reward/debit/grant only.
+-- 8) Run concurrent purchase requests against the same balance; no negative
+--    authoritative balance and no duplicate inventory grant are possible.
+-- 9) Verify that user_roles and school tables have no direct anon/authenticated
+--    grants and cannot be accessed through the Data API.

@@ -1,0 +1,28 @@
+/* Document defaults, typography and global primitives. */
+body{
+  min-height:100vh;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font);
+  font-size:var(--font-base);
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+body.is-locked{overflow:hidden}
+h1,h2,h3,h4,h5,p{margin:0}
+button{font-family:inherit}
+a{color:var(--cyan)}
+img,svg{display:block;max-width:100%}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:10px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+#starfield{position:fixed;inset:0;width:100%;height:100%;z-index:var(--z-background);pointer-events:none}
+.nebula{
+  position:fixed;inset:0;z-index:var(--z-background);pointer-events:none;
+  background:
+    radial-gradient(900px 620px at 12% -10%, rgba(79,227,255,.13), transparent 62%),
+    radial-gradient(780px 520px at 92% 4%, rgba(255,200,87,.10), transparent 60%),
+    radial-gradient(900px 700px at 60% 108%, rgba(95,240,182,.09), transparent 62%);
+}
+

@@ -1,0 +1,80 @@
+/* Design tokens and CSS custom properties. */
+/* ============================================================
+   ASTROCADET — design system
+   ============================================================ */
+:root{
+  --bg:#060a18;
+  --bg-2:#0a1024;
+  --panel:#0f1730;
+  --panel-2:#121d3c;
+  --panel-3:#17244a;
+  --line:rgba(126,168,255,.15);
+  --line-strong:rgba(126,168,255,.32);
+  --ink:#eaf1ff;
+  --ink-dim:#a7b6da;
+  --ink-faint:#7486ad;
+  --cyan:#4fe3ff;
+  --mint:#5ff0b6;
+  --amber:#ffc857;
+  --coral:#ff7d7d;
+  --violet:#a99bff;
+  /* Semantic color tokens */
+  --color-bg:var(--bg);
+  --color-surface:var(--panel);
+  --color-surface-raised:var(--panel-2);
+  --color-surface-hover:var(--panel-3);
+  --color-text:var(--ink);
+  --color-text-muted:var(--ink-dim);
+  --color-text-subtle:var(--ink-faint);
+  --color-primary:var(--cyan);
+  --color-success:var(--mint);
+  --color-warning:var(--amber);
+  --color-danger:var(--coral);
+  --color-accent:var(--violet);
+  --color-border:var(--line);
+  --color-border-strong:var(--line-strong);
+
+  /* Typography scale */
+  --font-xs:.68rem;
+  --font-sm:.82rem;
+  --font-md:.93rem;
+  --font-base:1rem;
+  --font-lg:1.2rem;
+  --font-xl:1.55rem;
+  --font-2xl:2rem;
+  --font-family:"Trebuchet MS","Segoe UI Variable","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --font:var(--font-family);
+
+  /* Spacing scale (4px base) */
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-5:20px;
+  --space-6:24px;
+  --space-8:32px;
+  --space-10:40px;
+  --space-12:48px;
+
+  /* Radius, elevation and layering */
+  --r-xs:8px;
+  --r-sm:12px;
+  --r:18px;
+  --r-lg:26px;
+  --r-pill:999px;
+  --shadow-sm:0 8px 22px -14px rgba(0,0,0,.7);
+  --shadow:0 24px 60px -32px rgba(0,0,0,.95);
+  --shadow-glow:0 14px 30px -16px rgba(79,227,255,.95);
+  --z-background:0;
+  --z-content:1;
+  --z-sticky:40;
+  --z-overlay:70;
+  --z-floating:80;
+  --z-confetti:90;
+  --z-toast:95;
+  --z-modal:120;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}

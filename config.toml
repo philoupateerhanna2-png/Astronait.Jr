@@ -1,0 +1,5 @@
+project_id = "astronaut-jr"
+
+[functions.api]
+# User-facing application API requires a signed-in Supabase user JWT.
+verify_jwt = true

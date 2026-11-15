@@ -1,0 +1,116 @@
+/* Header, navigation, page layout and hero structure. */
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:var(--z-sticky);
+  background:rgba(7,11,26,.82);
+  backdrop-filter:blur(18px) saturate(140%);
+  border-bottom:1px solid var(--line);
+}
+.topbar-inner{
+  max-width:1180px;margin:0 auto;padding:12px 18px;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+}
+.brand{
+  display:flex;align-items:center;gap:12px;background:none;border:0;
+  padding:0;cursor:pointer;color:inherit;text-align:left;
+}
+.logo{
+  width:46px;height:46px;border-radius:15px;flex:none;
+  display:grid;place-items:center;
+  background:linear-gradient(150deg,#1a2a55,#0c1730);
+  border:1px solid rgba(79,227,255,.45);
+  box-shadow:0 0 0 1px rgba(79,227,255,.12) inset,0 12px 26px -14px rgba(79,227,255,.9);
+}
+.logo svg{width:28px;height:28px}
+.brand-text{display:flex;flex-direction:column;line-height:1.1}
+.brand-name{
+  font-size:1.3rem;font-weight:800;letter-spacing:-.02em;
+  background:linear-gradient(92deg,#8df3ff,#e9f4ff 55%,#ffd98a);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.brand-sub{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin-top:3px}
+
+.hud{display:flex;align-items:center;gap:9px}
+.hud-stat{
+  display:flex;align-items:center;gap:9px;
+  background:rgba(255,200,87,.09);
+  border:1px solid rgba(255,200,87,.35);
+  border-radius:999px;padding:6px 14px 6px 10px;
+  color:var(--amber);
+}
+.hud-ico{font-size:1rem;filter:drop-shadow(0 0 8px rgba(255,200,87,.7))}
+.hud-stat b{font-size:1.05rem;font-weight:800;letter-spacing:-.01em}
+.hud-stat small{display:block;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,200,87,.72);line-height:1}
+.hud-rank{display:none;flex-direction:column;gap:5px;min-width:132px}
+.hud-rank span:first-child{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim)}
+.rankbar{height:6px;border-radius:99px;background:rgba(126,168,255,.14);overflow:hidden;display:block}
+.rankbar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--cyan),var(--mint));transition:width .7s cubic-bezier(.2,.8,.3,1)}
+.icon-btn{
+  width:42px;height:42px;flex:none;display:grid;place-items:center;
+  border-radius:13px;border:1px solid var(--line);background:rgba(126,168,255,.07);
+  color:var(--ink);font-size:1rem;cursor:pointer;transition:background .18s,transform .18s;
+}
+.icon-btn:hover{background:rgba(126,168,255,.16);transform:translateY(-1px)}
+
+/* ---------- nav tabs ---------- */
+.tabs{
+  max-width:1180px;margin:0 auto;padding:0 18px 10px;
+  display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;
+}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  flex:none;display:inline-flex;align-items:center;gap:7px;
+  padding:9px 16px;min-height:42px;border-radius:var(--r-pill);cursor:pointer;
+  border:1px solid transparent;background:transparent;color:var(--color-text-muted);
+  font-size:var(--font-md);font-weight:700;white-space:nowrap;transition:all .18s;
+}
+.tab:hover{color:var(--ink);background:rgba(126,168,255,.09)}
+.tab.is-active{
+  color:#04121a;background:var(--cyan);
+  box-shadow:0 10px 24px -14px var(--cyan);
+  border-color:transparent;
+}
+
+/* ---------- layout ---------- */
+main{position:relative;z-index:var(--z-content);padding:22px 18px 120px;max-width:1180px;margin:0 auto}
+.view{display:none}
+.view.is-active{display:block;animation:viewIn .4s cubic-bezier(.2,.8,.3,1) both}
+@keyframes viewIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* ---------- hero ---------- */
+.hero{
+  position:relative;overflow:hidden;
+  border-radius:var(--r-lg);
+  border:1px solid var(--line-strong);
+  background:
+    radial-gradient(700px 340px at 88% -30%, rgba(79,227,255,.18), transparent 65%),
+    linear-gradient(160deg,#16224a,#0c142b 62%);
+  padding:26px;display:grid;grid-template-columns:1fr;gap:20px;
+  box-shadow:var(--shadow);
+}
+.hero::after{
+  content:"";position:absolute;right:-90px;bottom:-140px;width:340px;height:340px;
+  border-radius:50%;border:1px dashed rgba(126,168,255,.18);
+  box-shadow:0 0 0 44px rgba(126,168,255,.04),0 0 0 100px rgba(126,168,255,.025);
+  pointer-events:none;
+}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--cyan);background:rgba(79,227,255,.1);
+  border:1px solid rgba(79,227,255,.3);border-radius:999px;padding:5px 12px;
+}
+.hero h2{
+  font-size:clamp(1.65rem,4.4vw,2.5rem);line-height:1.1;
+  letter-spacing:-.025em;margin:14px 0 10px;font-weight:800;
+}
+.hero h2 em{font-style:normal;color:var(--amber)}
+.hero p{color:var(--ink-dim);max-width:52ch;font-size:.98rem}
+.hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.hero-visual > svg{width:100%;max-width:270px;height:auto;margin:0 auto}
+.hero-visual{position:relative;display:grid;place-items:center;min-height:210px}
+
+
+/* Official Astronaut Jr image logo */
+.brand{gap:0}
+.brand-logo{display:block;width:178px;height:78px;object-fit:contain;object-position:left center;flex:none}

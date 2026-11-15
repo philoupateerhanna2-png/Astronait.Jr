@@ -1,0 +1,441 @@
+openapi: 3.1.0
+info:
+  title: Astronaut Jr Application API
+  version: 1.0.0-draft
+  description: >-
+    Contract for the single Supabase Edge Function router. Authentication and
+    token refresh are handled by Supabase Auth; all application operations are
+    routed through the api Edge Function. Draft only; not deployed.
+servers:
+  - url: https://{projectRef}.supabase.co/functions/v1/api/v1
+    variables:
+      projectRef:
+        default: your-project-ref
+security:
+  - bearerAuth: []
+paths:
+  /me:
+    get:
+      summary: Get the authenticated user's profile
+      responses:
+        '200':
+          description: Current profile
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, profile, cadet]
+                properties:
+                  user: { $ref: '#/components/schemas/UserSummary' }
+                  profile: { $ref: '#/components/schemas/Profile' }
+                  cadet: { $ref: '#/components/schemas/CadetProfile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update permitted profile fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                display_name: { type: string, minLength: 1, maxLength: 40 }
+                call_sign: { type: string, minLength: 1, maxLength: 20 }
+                leaderboard_opt_in: { type: boolean }
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profile, cadet]
+                properties:
+                  profile: { $ref: '#/components/schemas/Profile' }
+                  cadet: { $ref: '#/components/schemas/CadetProfile' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /progress:
+    get:
+      summary: Read confirmed progress and server-computed star balance
+      parameters:
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        '200':
+          description: Confirmed progress
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [progress, star_balance]
+                properties:
+                  progress:
+                    type: array
+                    items: { $ref: '#/components/schemas/MissionProgress' }
+                  star_balance: { type: integer, minimum: 0 }
+                  cursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /missions/{missionKey}/checkpoint:
+    put:
+      summary: Save a validated mission checkpoint draft to the account
+      parameters:
+        - $ref: '#/components/parameters/MissionKey'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [checkpoint, client_revision]
+              additionalProperties: false
+              properties:
+                checkpoint: { type: object, additionalProperties: true }
+                client_revision: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Saved checkpoint
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [checkpoint, server_revision, updated_at]
+                properties:
+                  checkpoint: { type: object }
+                  server_revision: { type: integer }
+                  updated_at: { type: string, format: date-time }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /missions/{missionKey}/complete:
+    post:
+      summary: Submit mission answers; server grades and grants any eligible reward
+      parameters:
+        - $ref: '#/components/parameters/MissionKey'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuizSubmission' }
+      responses:
+        '200':
+          description: Server-confirmed completion/result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [completed, score, max_score, stars_awarded, star_balance, progress]
+                properties:
+                  completed: { type: boolean }
+                  score: { type: integer, minimum: 0 }
+                  max_score: { type: integer, minimum: 0 }
+                  stars_awarded: { type: integer, minimum: 0 }
+                  star_balance: { type: integer, minimum: 0 }
+                  progress: { $ref: '#/components/schemas/MissionProgress' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /quizzes/{quizKey}/attempts:
+    post:
+      summary: Submit a quiz attempt; score is calculated on the server
+      parameters:
+        - in: path
+          name: quizKey
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 80 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuizSubmission' }
+      responses:
+        '201':
+          description: Recorded quiz attempt
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempt_id, score, max_score, submitted_at]
+                properties:
+                  attempt_id: { type: string, format: uuid }
+                  score: { type: integer, minimum: 0 }
+                  max_score: { type: integer, minimum: 0 }
+                  submitted_at: { type: string, format: date-time }
+  /achievements:
+    get:
+      summary: Read active achievements and the current user's unlocks
+      responses:
+        '200':
+          description: Achievement catalogue and unlocked keys
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [catalogue, unlocked]
+                properties:
+                  catalogue: { type: array, items: { type: object } }
+                  unlocked: { type: array, items: { type: string } }
+  /store/purchases:
+    post:
+      summary: Purchase a virtual cosmetic using the server's current price and balance
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [item_id]
+              additionalProperties: false
+              properties:
+                item_id: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        '201':
+          description: Purchase and inventory grant
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [purchase, inventory_item, star_balance]
+                properties:
+                  purchase: { type: object }
+                  inventory_item: { type: object }
+                  star_balance: { type: integer, minimum: 0 }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /store/equipped:
+    put:
+      summary: Equip an item already owned by the current user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slot, item_id]
+              additionalProperties: false
+              properties:
+                slot: { type: string }
+                item_id: { type: string }
+      responses:
+        '200':
+          description: Current equipped item for the slot
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [equipped]
+                properties:
+                  equipped: { type: object }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /leaderboard:
+    get:
+      summary: Read leaderboard entries from opted-in public aliases only
+      parameters:
+        - in: query
+          name: scope
+          schema: { type: string, enum: [global, school], default: global }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        '200':
+          description: Public alias and aggregate scores only
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [players]
+                properties:
+                  players: { type: array, items: { $ref: '#/components/schemas/LeaderboardEntry' } }
+                  cursor: { type: [string, 'null'] }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /ai/ask:
+    post:
+      summary: Rate-limited server-side AI provider proxy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              additionalProperties: false
+              properties:
+                prompt: { type: string, minLength: 1, maxLength: 4000 }
+                context_ids: { type: array, maxItems: 10, items: { type: string } }
+      responses:
+        '200':
+          description: Provider answer
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [answer, request_id]
+                properties:
+                  answer: { type: string }
+                  request_id: { type: string }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/UpstreamUnavailable' }
+  /nasa/{resource}:
+    get:
+      summary: Allow-listed NASA data proxy; arbitrary URLs are not accepted
+      parameters:
+        - in: path
+          name: resource
+          required: true
+          schema: { type: string, enum: [apod, asteroids, mars-weather] }
+        - in: query
+          name: date
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: NASA response with source metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, source, fetched_at]
+                properties:
+                  data: {}
+                  source: { type: string, format: uri }
+                  fetched_at: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/UpstreamUnavailable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    MissionKey:
+      in: path
+      name: missionKey
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 80 }
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    UserSummary:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string, format: uuid }
+    Profile:
+      type: object
+      required: [display_name, leaderboard_opt_in]
+      properties:
+        display_name: { type: string }
+        public_handle: { type: [string, 'null'] }
+        leaderboard_opt_in: { type: boolean }
+    CadetProfile:
+      type: object
+      required: [call_sign, locale]
+      properties:
+        call_sign: { type: string }
+        avatar_key: { type: [string, 'null'] }
+        locale: { type: string, enum: [en, ar] }
+    MissionProgress:
+      type: object
+      required: [mission_key, status, best_score, max_score, attempts_count, revision]
+      properties:
+        mission_key: { type: string }
+        status: { type: string, enum: [locked, available, in_progress, completed] }
+        best_score: { type: integer }
+        max_score: { type: integer }
+        attempts_count: { type: integer }
+        revision: { type: integer }
+        completed_at: { type: [string, 'null'], format: date-time }
+    QuizSubmission:
+      type: object
+      required: [attempt_id, quiz_version, answers]
+      additionalProperties: false
+      properties:
+        attempt_id: { type: string, format: uuid }
+        quiz_version: { type: string }
+        answers:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [question_id, answer]
+            additionalProperties: false
+            properties:
+              question_id: { type: string }
+              answer: {}
+    LeaderboardEntry:
+      type: object
+      required: [public_handle, stars, missions]
+      properties:
+        public_handle: { type: string }
+        stars: { type: integer, minimum: 0 }
+        missions: { type: integer, minimum: 0 }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            request_id: { type: string }
+            details: { type: array, items: {} }
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource does not exist or is not visible to the caller
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Missing, invalid or expired access token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Operation is not allowed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: State conflict or insufficient stars
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: Request rate limit exceeded
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    InternalError:
+      description: Unexpected server failure; no stack trace or secret is returned
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    UpstreamUnavailable:
+      description: External provider is unavailable
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
